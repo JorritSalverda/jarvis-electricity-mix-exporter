@@ -91,8 +91,12 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed creating exporter.Service")
 	}
 
-	err = exporterService.Run(ctx, entsoe.Area(*entsoeArea))
+	gracefulShutdown, waitGroup := foundation.InitGracefulShutdownHandling()
+
+	err = exporterService.Run(ctx, waitGroup, entsoe.Area(*entsoeArea))
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed running export")
 	}
+
+	foundation.HandleGracefulShutdown(gracefulShutdown, waitGroup)
 }

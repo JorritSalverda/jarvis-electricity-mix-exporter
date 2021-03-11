@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/bigquery"
@@ -13,7 +14,7 @@ import (
 )
 
 type Service interface {
-	Run(ctx context.Context, area entsoe.Area) error
+	Run(ctx context.Context, waitGroup *sync.WaitGroup, area entsoe.Area) error
 }
 
 func NewService(bigqueryClient bigquery.Client, stateClient state.Client, entsoeClient entsoe.Client) (Service, error) {
@@ -30,7 +31,7 @@ type service struct {
 	entsoeClient   entsoe.Client
 }
 
-func (s *service) Run(ctx context.Context, area entsoe.Area) error {
+func (s *service) Run(ctx context.Context, waitGroup *sync.WaitGroup, area entsoe.Area) error {
 
 	// check if there's a previous measurement stored in state file
 	lastMeasurement, err := s.stateClient.ReadState(ctx)
@@ -77,16 +78,7 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 
 		var lastStoredMeasurement *contractsv1.Measurement
 		for i := 0; i < nrOfSlots; i++ {
-			timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(i*entsoe.TimeSlotsInMinutes) * time.Minute)
-			if lastMeasurement != nil && timeSlotStartTime.Equal(lastMeasurement.MeasuredAtTime) {
-				log.Info().Msgf("Timeslot start at %v has already been stored, continuing to next timeslot", timeSlotStartTime)
-				continue
-			}
-
-			measurement := s.createMeasurementForTimeSlot(response, timeSlotStartTime, area)
-
-			// store measurement
-			err = s.bigqueryClient.InsertMeasurement(measurement)
+			measurement, err := s.handleTimeSlot(ctx, response, i, area, waitGroup)
 			if err != nil {
 				return err
 			}
@@ -95,12 +87,6 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 		}
 
 		if lastStoredMeasurement != nil {
-			// store state
-			err = s.stateClient.StoreState(ctx, *lastStoredMeasurement)
-			if err != nil {
-				return err
-			}
-
 			lastMeasurement = lastStoredMeasurement
 		} else {
 			log.Info().Msg("No new measurements were inserted, exiting")
@@ -225,4 +211,30 @@ func (s *service) createMeasurementForTimeSlot(response entsoe.GetAggregatedGene
 	}
 
 	return measurement
+}
+
+func (s *service) handleTimeSlot(ctx context.Context, response entsoe.GetAggregatedGenerationPerTypeResponse, timeSlotIndex int, area entsoe.Area, waitGroup *sync.WaitGroup) (measurement contractsv1.Measurement, err error) {
+	timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(timeSlotIndex*entsoe.TimeSlotsInMinutes) * time.Minute)
+	// if lastMeasurement != nil && timeSlotStartTime.Equal(lastMeasurement.MeasuredAtTime) {
+	// 	log.Info().Msgf("Timeslot start at %v has already been stored, continuing to next timeslot", timeSlotStartTime)
+	// 	continue
+	// }
+
+	measurement = s.createMeasurementForTimeSlot(response, timeSlotStartTime, area)
+
+	// store measurement
+	waitGroup.Add(1)
+	defer waitGroup.Done()
+	err = s.bigqueryClient.InsertMeasurement(measurement)
+	if err != nil {
+		return
+	}
+
+	// store state
+	err = s.stateClient.StoreState(ctx, measurement)
+	if err != nil {
+		return
+	}
+
+	return
 }
