@@ -85,6 +85,7 @@ type DocumentType string
 
 const (
 	DocumentTypeUnknown                 DocumentType = ""
+	DocumentTypeSystemTotalLoad         DocumentType = "A65"
 	DocumentTypeActualGenerationPerType DocumentType = "A75"
 )
 

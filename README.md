@@ -14,3 +14,7 @@ helm upgrade \
   --set secret.gcpServiceAccountKeyfile='{abc: blabla}' \
   --wait
 ```
+
+# Misc
+
+Losely based on https://github.com/tmrowco/electricitymap-contrib/blob/master/parsers/NL.py
