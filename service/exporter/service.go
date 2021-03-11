@@ -131,7 +131,19 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 			}
 
 			lastMeasurement = lastStoredMeasurement
+		} else {
+			log.Info().Msg("No new measurements were stored, exiting")
+			return nil
 		}
+
+		now = time.Now().UTC()
+		if now.Sub(lastMeasurement.MeasuredAtTime).Minutes() < entsoe.TimeSlotsInMinutes {
+			log.Info().Msgf("Difference between start - %v - and now - %v - is less than %v minutes, exiting", lastMeasurement.MeasuredAtTime, now, slotsToRetrieve*entsoe.TimeSlotsInMinutes)
+			return nil
+		}
+
+		// otherwise wait a bit before starting next loop iteration to avoid hitting rate limits
+		time.Sleep(time.Duration(30) * time.Second)
 	}
 }
 
