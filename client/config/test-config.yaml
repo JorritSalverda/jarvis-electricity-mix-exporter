@@ -1,0 +1,18 @@
+location: My Home
+sampleConfigs:
+- entityType: ENTITY_TYPE_DEVICE
+  entityName: Alpha Innotec SWCV 92K3
+  sampleType: SAMPLE_TYPE_TEMPERATURE
+  sampleName: Aanvoer
+  metricType: METRIC_TYPE_GAUGE
+  valueMultiplier: 1
+  navigation: Informatie > Temperaturen
+  item: Aanvoer
+- entityType: ENTITY_TYPE_DEVICE
+  entityName: Alpha Innotec SWCV 92K3
+  sampleType: SAMPLE_TYPE_TEMPERATURE
+  sampleName: Retour
+  metricType: METRIC_TYPE_GAUGE
+  valueMultiplier: 1
+  navigation: Informatie > Temperaturen
+  item: Retour
