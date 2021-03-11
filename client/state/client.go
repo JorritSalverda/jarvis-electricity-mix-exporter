@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	contractsv1 "github.com/JorritSalverda/jarvis-contracts-golang/contracts/v1"
+	contractsv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/contracts/v1"
 	"github.com/rs/zerolog/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"

@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const TimeSlotsInMinutes = 15
+
 type GetAggregatedGenerationPerTypeResponse struct {
 	DocumentType DocumentType `xml:"type"`
 	ProcessType  ProcessType  `xml:"process.processType"`
@@ -73,6 +75,15 @@ const (
 	AreaUnknown     Area = ""
 	AreaNetherlands Area = "10YNL----------L"
 )
+
+func (a Area) GetCountryCode() string {
+	switch a {
+	case AreaNetherlands:
+		return "NL"
+	}
+
+	return "UNKNOWN"
+}
 
 type ProcessType string
 

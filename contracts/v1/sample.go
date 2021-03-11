@@ -1,10 +1,10 @@
 package contracts
 
 type Sample struct {
-	EntityType EntityType
-	EntityName string
-	SampleType SampleType
-	SampleName string
-	MetricType MetricType
-	Value      float64
+	EnergyType      EnergyType
+	IsRenewable     bool
+	MetricType      MetricType
+	SampleDirection SampleDirection
+	SampleUnit      SampleUnit
+	Value           float64
 }

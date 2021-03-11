@@ -6,23 +6,23 @@ import (
 	"time"
 
 	googlebigquery "cloud.google.com/go/bigquery"
-	contractsv1 "github.com/JorritSalverda/jarvis-contracts-golang/contracts/v1"
+	contractsv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/contracts/v1"
 	"github.com/rs/zerolog/log"
 )
 
 // Client is the interface for connecting to bigquery
 type Client interface {
-	CheckIfDatasetExists(dataset string) (exists bool)
-	CheckIfTableExists(dataset, table string) (exists bool)
-	CreateTable(dataset, table string, typeForSchema interface{}, partitionField string, waitReady bool) (err error)
-	UpdateTableSchema(dataset, table string, typeForSchema interface{}) (err error)
-	DeleteTable(dataset, table string) (err error)
-	InsertMeasurement(dataset, table string, measurement contractsv1.Measurement) (err error)
-	InitBigqueryTable(dataset, table string) (err error)
+	CheckIfDatasetExists() (exists bool)
+	CheckIfTableExists() (exists bool)
+	CreateTable(typeForSchema interface{}, partitionField string, waitReady bool) (err error)
+	UpdateTableSchema(typeForSchema interface{}) (err error)
+	DeleteTable() (err error)
+	InsertMeasurement(measurement contractsv1.Measurement) (err error)
+	InitBigqueryTable() (err error)
 }
 
 // NewClient returns new bigquery.Client
-func NewClient(projectID string, enable bool) (Client, error) {
+func NewClient(projectID string, enable bool, dataset, table string) (Client, error) {
 
 	ctx := context.Background()
 
@@ -35,6 +35,8 @@ func NewClient(projectID string, enable bool) (Client, error) {
 		projectID: projectID,
 		client:    bigqueryClient,
 		enable:    enable,
+		dataset:   dataset,
+		table:     table,
 	}, nil
 }
 
@@ -42,30 +44,32 @@ type client struct {
 	projectID string
 	client    *googlebigquery.Client
 	enable    bool
+	dataset   string
+	table     string
 }
 
-func (c *client) CheckIfDatasetExists(dataset string) (exists bool) {
+func (c *client) CheckIfDatasetExists() (exists bool) {
 
 	if !c.enable {
 		return false
 	}
 
-	ds := c.client.Dataset(dataset)
+	ds := c.client.Dataset(c.dataset)
 
 	md, err := ds.Metadata(context.Background())
 
-	log.Error().Err(err).Msgf("Error retrieving metadata for dataset %v", dataset)
+	log.Error().Err(err).Msgf("Error retrieving metadata for dataset %v", c.dataset)
 
 	return md != nil
 }
 
-func (c *client) CheckIfTableExists(dataset, table string) (exists bool) {
+func (c *client) CheckIfTableExists() (exists bool) {
 
 	if !c.enable {
 		return false
 	}
 
-	tbl := c.client.Dataset(dataset).Table(table)
+	tbl := c.client.Dataset(c.dataset).Table(c.table)
 
 	md, _ := tbl.Metadata(context.Background())
 
@@ -74,13 +78,13 @@ func (c *client) CheckIfTableExists(dataset, table string) (exists bool) {
 	return md != nil
 }
 
-func (c *client) CreateTable(dataset, table string, typeForSchema interface{}, partitionField string, waitReady bool) (err error) {
+func (c *client) CreateTable(typeForSchema interface{}, partitionField string, waitReady bool) (err error) {
 
 	if !c.enable {
 		return nil
 	}
 
-	tbl := c.client.Dataset(dataset).Table(table)
+	tbl := c.client.Dataset(c.dataset).Table(c.table)
 
 	// infer the schema of the type
 	schema, err := googlebigquery.InferSchema(typeForSchema)
@@ -107,7 +111,7 @@ func (c *client) CreateTable(dataset, table string, typeForSchema interface{}, p
 
 	if waitReady {
 		for {
-			if c.CheckIfTableExists(dataset, table) {
+			if c.CheckIfTableExists() {
 				break
 			}
 			time.Sleep(time.Second)
@@ -117,13 +121,13 @@ func (c *client) CreateTable(dataset, table string, typeForSchema interface{}, p
 	return nil
 }
 
-func (c *client) UpdateTableSchema(dataset, table string, typeForSchema interface{}) (err error) {
+func (c *client) UpdateTableSchema(typeForSchema interface{}) (err error) {
 
 	if !c.enable {
 		return nil
 	}
 
-	tbl := c.client.Dataset(dataset).Table(table)
+	tbl := c.client.Dataset(c.dataset).Table(c.table)
 
 	// infer the schema of the type
 	schema, err := googlebigquery.InferSchema(typeForSchema)
@@ -146,13 +150,13 @@ func (c *client) UpdateTableSchema(dataset, table string, typeForSchema interfac
 	return nil
 }
 
-func (c *client) DeleteTable(dataset, table string) (err error) {
+func (c *client) DeleteTable() (err error) {
 
 	if !c.enable {
 		return nil
 	}
 
-	tbl := c.client.Dataset(dataset).Table(table)
+	tbl := c.client.Dataset(c.dataset).Table(c.table)
 
 	// delete the table
 	err = tbl.Delete(context.Background())
@@ -163,13 +167,13 @@ func (c *client) DeleteTable(dataset, table string) (err error) {
 	return nil
 }
 
-func (c *client) InsertMeasurement(dataset, table string, measurement contractsv1.Measurement) (err error) {
+func (c *client) InsertMeasurement(measurement contractsv1.Measurement) (err error) {
 
 	if !c.enable {
 		return nil
 	}
 
-	tbl := c.client.Dataset(dataset).Table(table)
+	tbl := c.client.Dataset(c.dataset).Table(c.table)
 
 	u := tbl.Uploader()
 
@@ -180,20 +184,20 @@ func (c *client) InsertMeasurement(dataset, table string, measurement contractsv
 	return nil
 }
 
-func (c *client) InitBigqueryTable(dataset, table string) (err error) {
+func (c *client) InitBigqueryTable() (err error) {
 
-	log.Debug().Msgf("Checking if table %v.%v.%v exists...", c.projectID, dataset, table)
-	tableExist := c.CheckIfTableExists(dataset, table)
+	log.Debug().Msgf("Checking if table %v.%v.%v exists...", c.projectID, c.dataset, c.table)
+	tableExist := c.CheckIfTableExists()
 
 	if !tableExist {
-		log.Debug().Msgf("Creating table %v.%v.%v...", c.projectID, dataset, table)
-		err := c.CreateTable(dataset, table, contractsv1.Measurement{}, "MeasuredAtTime", true)
+		log.Debug().Msgf("Creating table %v.%v.%v...", c.projectID, c.dataset, c.table)
+		err := c.CreateTable(contractsv1.Measurement{}, "MeasuredAtTime", true)
 		if err != nil {
 			return fmt.Errorf("Failed creating bigquery table: %w", err)
 		}
 	} else {
-		log.Debug().Msgf("Trying to update table %v.%v.%v schema...", c.projectID, dataset, table)
-		err := c.UpdateTableSchema(dataset, table, contractsv1.Measurement{})
+		log.Debug().Msgf("Trying to update table %v.%v.%v schema...", c.projectID, c.dataset, c.table)
+		err := c.UpdateTableSchema(contractsv1.Measurement{})
 		if err != nil {
 			return fmt.Errorf("Failed updating bigquery table schema: %w", err)
 		}

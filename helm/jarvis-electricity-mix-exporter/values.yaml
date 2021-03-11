@@ -7,36 +7,16 @@ cronjob:
   concurrencyPolicy: Forbid
 
 config:
-  websocketHostIP: 127.0.0.1
-  websocketHostPort: 8214
-  websocketLoginCode: 999999
+  entsoeArea: 10YNL----------L
   bqEnable: false
   bqInit: true
   bqProjectID: gcp-project-id
   bqDataset: jarvis
-  bqTable: jarvis_measurements
-  configYaml: |
-    location: My Home
-    sampleConfigs:
-    - entityType: ENTITY_TYPE_DEVICE
-      entityName: Alpha Innotec SWCV 92K3
-      sampleType: SAMPLE_TYPE_TEMPERATURE
-      sampleName: Aanvoer
-      metricType: METRIC_TYPE_GAUGE
-      valueMultiplier: 1
-      navigation: Informatie > Temperaturen
-      item: Aanvoer
-    - entityType: ENTITY_TYPE_DEVICE
-      entityName: Alpha Innotec SWCV 92K3
-      sampleType: SAMPLE_TYPE_TEMPERATURE
-      sampleName: Retour
-      metricType: METRIC_TYPE_GAUGE
-      valueMultiplier: 1
-      navigation: Informatie > Temperaturen
-      item: Retour
+  bqTable: jarvis_electricy_mix
 
 secret:
   gcpServiceAccountKeyfile: '{}'
+  entsoeToken: ''
 
 logFormat: json
 

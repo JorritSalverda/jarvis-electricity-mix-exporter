@@ -5,10 +5,14 @@ import (
 	"runtime"
 
 	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/bigquery"
-	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/config"
+	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/entsoe"
+	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/state"
+	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/service/exporter"
 	"github.com/alecthomas/kingpin"
 	foundation "github.com/estafette/estafette-foundation"
 	"github.com/rs/zerolog/log"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var (
@@ -22,6 +26,9 @@ var (
 	goVersion = runtime.Version()
 
 	// application specific config
+	entsoeToken = kingpin.Flag("entsoe-token", "Api token for https://transparency.entsoe.eu/api").Envar("ENTSOE_TOKEN").Required().String()
+	entsoeArea  = kingpin.Flag("entsoe-area", "Area to retrieve electricity mix for ").Envar("ENTSOE_AREA").Required().String()
+
 	bigqueryEnable    = kingpin.Flag("bigquery-enable", "Toggle to enable or disable bigquery integration").Default("true").OverrideDefaultFromEnvar("BQ_ENABLE").Bool()
 	bigqueryInit      = kingpin.Flag("bigquery-init", "Toggle to enable bigquery table initialization").Default("true").OverrideDefaultFromEnvar("BQ_INIT").Bool()
 	bigqueryProjectID = kingpin.Flag("bigquery-project-id", "Google Cloud project id that contains the BigQuery dataset").Envar("BQ_PROJECT_ID").Required().String()
@@ -44,73 +51,48 @@ func main() {
 	// create context to cancel commands on sigterm
 	ctx := foundation.InitCancellationContext(context.Background())
 
-	configClient, err := config.NewClient(ctx)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed creating config.Client")
-	}
-
-	// read config from yaml file
-	config, err := configClient.ReadConfigFromFile(*configPath)
-	if err != nil {
-		log.Fatal().Err(err).Msgf("Failed loading config from %v", *configPath)
-	}
-
-	log.Info().Interface("config", config).Msgf("Loaded config from %v", *configPath)
-
 	// init bigquery client
-	bigqueryClient, err := bigquery.NewClient(*bigqueryProjectID, *bigqueryEnable)
+	bigqueryClient, err := bigquery.NewClient(*bigqueryProjectID, *bigqueryEnable, *bigqueryDataset, *bigqueryTable)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed creating bigquery.Client")
 	}
 
 	// init bigquery table if it doesn't exist yet
 	if *bigqueryInit {
-		err = bigqueryClient.InitBigqueryTable(*bigqueryDataset, *bigqueryTable)
+		err = bigqueryClient.InitBigqueryTable()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed initializing bigquery table")
 		}
 	}
 
-	// // create kubernetes api client
-	// kubeClientConfig, err := rest.InClusterConfig()
-	// if err != nil {
-	// 	log.Fatal().Err(err)
-	// }
-	// // creates the clientset
-	// kubeClientset, err := kubernetes.NewForConfig(kubeClientConfig)
-	// if err != nil {
-	// 	log.Fatal().Err(err)
-	// }
+	// create kubernetes api client
+	kubeClientConfig, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed retrieving kubeClientConfig")
+	}
+	// creates the clientset
+	kubeClientset, err := kubernetes.NewForConfig(kubeClientConfig)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed creating kubeClientset")
+	}
 
-	// stateClient, err := state.NewClient(ctx, kubeClientset, *measurementFilePath, *measurementFileConfigMapName)
-	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("Failed creating state client")
-	// }
+	stateClient, err := state.NewClient(ctx, kubeClientset, *measurementFilePath, *measurementFileConfigMapName)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed creating state.Client")
+	}
 
-	// websocketClient, err := websocket.NewClient(*websocketHostIPAddress, *websocketHostPort, *websocketLoginCode)
-	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("Failed creating websocket client")
-	// }
+	entsoeClient, err := entsoe.NewClient(*entsoeToken)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed creating entsoe.client")
+	}
 
-	// lastMeasurement, err := stateClient.ReadState(ctx)
-	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("Failed reading last state")
-	// }
+	exporterService, err := exporter.NewService(bigqueryClient, stateClient, entsoeClient)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed creating exporter.Service")
+	}
 
-	// measurement, err := websocketClient.GetMeasurement(config, lastMeasurement)
-	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("Failed ")
-	// }
-
-	// err = bigqueryClient.InsertMeasurement(*bigqueryDataset, *bigqueryTable, measurement)
-	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("Failed inserting measurements into bigquery table")
-	// }
-
-	// err = stateClient.StoreState(ctx, measurement)
-	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("Failed storing measurements in state file")
-	// }
-
-	// log.Info().Msgf("Stored %v samples, exiting...", len(measurement.Samples))
+	err = exporterService.Run(ctx, entsoe.Area(*entsoeArea))
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed running export")
+	}
 }

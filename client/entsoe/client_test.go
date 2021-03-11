@@ -22,9 +22,9 @@ func TestGetAggregatedGenerationPerType(t *testing.T) {
 		area := AreaNetherlands
 
 		now := time.Now().UTC()
-		nowRoundedTo15Minutes := now.Round(time.Duration(15 * time.Minute))
-		startTime := nowRoundedTo15Minutes.Add(time.Duration(-3 * time.Hour))
-		endTime := nowRoundedTo15Minutes
+		nowRoundedToTimeSlotSize := now.Round(time.Duration(TimeSlotsInMinutes * time.Minute))
+		startTime := nowRoundedToTimeSlotSize.Add(time.Duration(-3 * time.Hour))
+		endTime := nowRoundedToTimeSlotSize
 
 		timeInterval := TimeInterval{
 			Start: startTime,

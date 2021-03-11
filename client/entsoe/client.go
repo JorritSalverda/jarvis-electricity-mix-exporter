@@ -49,7 +49,7 @@ func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInte
 	// - Response from API is same irrespective of querying for Document Types A74 - Wind & Solar & A75 - Actual  Generation Per Type
 	// - Time series with inBiddingZone_Domain attribute reflects Generation values while outBiddingZone_Domain reflects Consumption values.
 
-	log.Info().Msgf("Getting aggregated generation per type for in domain %v and time interval %v...", area, timeInterval)
+	log.Info().Msgf("Getting aggregated generation per type for in domain %v and time interval %v to %v...", area, timeInterval.Start, timeInterval.End)
 
 	getAggregatedGenerationPerTypeURL := fmt.Sprintf("%v?securityToken=%v&documentType=%v&processType=%v&in_Domain=%v&timeInterval=%v", c.apiBaseURL, c.securityToken, DocumentTypeActualGenerationPerType, ProcessTypeRealised, area, timeInterval.FormatAsParameter())
 
@@ -58,12 +58,16 @@ func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInte
 		return
 	}
 	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+
+	log.Debug().Str("body", string(body)).Msgf("Response body for aggregated generation per type for in domain %v and time interval %v to %v...", area, timeInterval.Start, timeInterval.End)
 
 	if resp.StatusCode != http.StatusOK {
 		return response, fmt.Errorf("Request returned unexpected status code %v", resp.StatusCode)
 	}
-
-	body, err := ioutil.ReadAll(resp.Body)
 
 	err = xml.Unmarshal(body, &response)
 	if err != nil {

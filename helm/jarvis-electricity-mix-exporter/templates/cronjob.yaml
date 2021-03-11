@@ -42,20 +42,15 @@ spec:
             env:
             - name: ESTAFETTE_LOG_FORMAT
               value: {{ .Values.logFormat }}
-            - name: WEBSOCKET_HOST_IP
+            - name: ENTSOE_AREA
               valueFrom:
                 configMapKeyRef:
-                  key: websocket-host-ip
+                  key: entsoe-area
                   name: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
-            - name: WEBSOCKET_HOST_PORT
+            - name: ENTSOE_TOKEN
               valueFrom:
-                configMapKeyRef:
-                  key: websocket-host-port
-                  name: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
-            - name: WEBSOCKET_LOGIN_CODE
-              valueFrom:
-                configMapKeyRef:
-                  key: websocket-login-code
+                secretKeyRef:
+                  key: entsoe-token
                   name: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
             - name: BQ_ENABLE
               valueFrom:

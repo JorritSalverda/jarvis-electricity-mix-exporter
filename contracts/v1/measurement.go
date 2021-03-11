@@ -7,7 +7,7 @@ import (
 type Measurement struct {
 	ID             string
 	Source         string
-	Location       string
+	Area           string
 	Samples        []*Sample
 	MeasuredAtTime time.Time
 }
