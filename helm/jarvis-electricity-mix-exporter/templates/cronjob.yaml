@@ -15,7 +15,6 @@ spec:
       completions: 1
       parallelism: 1
       backoffLimit: 0
-      activeDeadlineSeconds: 240
       template:
         metadata:
           {{- with .Values.podAnnotations }}

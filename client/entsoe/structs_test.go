@@ -2,6 +2,7 @@ package entsoe
 
 import (
 	"encoding/xml"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -179,5 +180,19 @@ func TestUnmarshal(t *testing.T) {
 		assert.Equal(t, 1554.0, response.TimeSeries[1].Period.Points[0].Quantity)
 		assert.Equal(t, 2, response.TimeSeries[1].Period.Points[1].Position)
 		assert.Equal(t, 1581.0, response.TimeSeries[1].Period.Points[1].Quantity)
+	})
+
+	t.Run("ReadsTestResponse", func(t *testing.T) {
+
+		testResponse, _ := ioutil.ReadFile("test-response.xml")
+		var response GetAggregatedGenerationPerTypeResponse
+
+		// act
+		err := xml.Unmarshal([]byte(testResponse), &response)
+
+		assert.Nil(t, err)
+		assert.Equal(t, 39, len(response.TimeSeries))
+		assert.Equal(t, 5, response.TimeSeries[4].ID)
+		assert.Equal(t, 5046.0, response.TimeSeries[4].Period.Points[0].Quantity)
 	})
 }

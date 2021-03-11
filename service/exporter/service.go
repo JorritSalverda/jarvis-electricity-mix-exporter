@@ -44,7 +44,7 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 		// if it's the first time begin a year ago, otherwise start at last stored value
 		var start time.Time
 		if lastMeasurement != nil {
-			start = lastMeasurement.MeasuredAtTime
+			start = lastMeasurement.MeasuredAtTime.Add(time.Duration(entsoe.TimeSlotsInMinutes) * time.Minute)
 		} else {
 			start = now.AddDate(-1, 0, 0)
 		}
@@ -54,7 +54,7 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 		}
 
 		// don't continue, we're up to date
-		if start.Equal(end) {
+		if !start.Before(end) {
 			log.Info().Msgf("Start - %v - and end - %v - are equal, exiting", start, end)
 			return nil
 		}
@@ -83,46 +83,7 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 				continue
 			}
 
-			measurement := contractsv1.Measurement{
-				ID:             uuid.New().String(),
-				Source:         "ENTSOE",
-				Area:           area.GetCountryCode(),
-				MeasuredAtTime: timeSlotStartTime,
-			}
-
-			// insert all periods that started after last inserted one
-			for _, ts := range response.TimeSeries {
-				if ts.Period.TimeInterval.Start.After(timeSlotStartTime) {
-					log.Info().Msgf("Timeserie %v for psr type %v starts after time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
-					continue
-				}
-				if ts.Period.TimeInterval.End.Equal(timeSlotStartTime) {
-					log.Info().Msgf("Timeserie %v for psr type %v ends at time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
-					continue
-				}
-				if ts.Period.TimeInterval.End.Before(timeSlotStartTime) {
-					log.Info().Msgf("Timeserie %v for psr type %v ends before time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
-					continue
-				}
-
-				pointIndexForSlot := int(timeSlotStartTime.Sub(ts.Period.TimeInterval.Start).Minutes() / entsoe.TimeSlotsInMinutes)
-
-				energyType := s.mapToEnergyType(ts.MktPsrType.PsrType)
-				if pointIndexForSlot < len(ts.Period.Points) {
-					measurement.Samples = append(measurement.Samples, &contractsv1.Sample{
-						EnergyType:         energyType,
-						OriginalEnergyType: string(ts.MktPsrType.PsrType),
-						IsRenewable:        energyType.IsRenewable(),
-						MetricType:         contractsv1.MetricTypeGauge,
-						SampleDirection:    s.mapToSampleDirection(ts),
-						SampleUnit:         s.mapToSampleUnit(ts.QuanityMeasurementUnit),
-						Value:              ts.Period.Points[pointIndexForSlot].Quantity,
-					})
-				} else {
-					// this timeserie seems to have less points, what to do now?
-					log.Warn().Msgf("Timeserie %v for psr type %v only has %v points, while index %v should be retrieved", ts.ID, ts.MktPsrType.PsrType, len(ts.Period.Points), pointIndexForSlot)
-				}
-			}
+			measurement := s.createMeasurementForTimeSlot(response, timeSlotStartTime, area)
 
 			// store measurement
 			err = s.bigqueryClient.InsertMeasurement(measurement)
@@ -147,8 +108,8 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 		}
 
 		// otherwise wait a bit before starting next loop iteration to avoid hitting rate limits
-		log.Info().Msg("Sleeping for 30 seconds before retrieving more data, to avoid rate limiting")
-		time.Sleep(time.Duration(30) * time.Second)
+		log.Info().Msg("Sleeping for 15 seconds before retrieving more data, to avoid rate limiting")
+		time.Sleep(time.Duration(15) * time.Second)
 	}
 }
 
@@ -218,4 +179,50 @@ func (s *service) mapToSampleUnit(measurementUnit entsoe.MeasurementUnit) contra
 	}
 
 	return contractsv1.SampleUnitUnknown
+}
+
+func (s *service) createMeasurementForTimeSlot(response entsoe.GetAggregatedGenerationPerTypeResponse, timeSlotStartTime time.Time, area entsoe.Area) contractsv1.Measurement {
+
+	measurement := contractsv1.Measurement{
+		ID:             uuid.New().String(),
+		Source:         "ENTSOE",
+		Area:           area.GetCountryCode(),
+		MeasuredAtTime: timeSlotStartTime,
+	}
+
+	// insert all periods that started after last inserted one
+	for _, ts := range response.TimeSeries {
+		if ts.Period.TimeInterval.Start.After(timeSlotStartTime) {
+			log.Info().Msgf("Timeserie %v for psr type %v starts after time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+			continue
+		}
+		if ts.Period.TimeInterval.End.Equal(timeSlotStartTime) {
+			log.Info().Msgf("Timeserie %v for psr type %v ends at time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+			continue
+		}
+		if ts.Period.TimeInterval.End.Before(timeSlotStartTime) {
+			log.Info().Msgf("Timeserie %v for psr type %v ends before time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+			continue
+		}
+
+		pointIndexForSlot := int(timeSlotStartTime.Sub(ts.Period.TimeInterval.Start).Minutes() / entsoe.TimeSlotsInMinutes)
+
+		energyType := s.mapToEnergyType(ts.MktPsrType.PsrType)
+		if pointIndexForSlot < len(ts.Period.Points) {
+			measurement.Samples = append(measurement.Samples, &contractsv1.Sample{
+				EnergyType:         energyType,
+				OriginalEnergyType: string(ts.MktPsrType.PsrType),
+				IsRenewable:        energyType.IsRenewable(),
+				MetricType:         contractsv1.MetricTypeGauge,
+				SampleDirection:    s.mapToSampleDirection(ts),
+				SampleUnit:         s.mapToSampleUnit(ts.QuanityMeasurementUnit),
+				Value:              ts.Period.Points[pointIndexForSlot].Quantity,
+			})
+		} else {
+			// this timeserie seems to have less points, what to do now?
+			log.Warn().Msgf("Timeserie %v for psr type %v only has %v points, while index %v should be retrieved", ts.ID, ts.MktPsrType.PsrType, len(ts.Period.Points), pointIndexForSlot)
+		}
+	}
+
+	return measurement
 }
