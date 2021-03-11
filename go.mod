@@ -12,12 +12,12 @@ require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20190910110746-680d30ca3117 // indirect
 	github.com/estafette/estafette-foundation v0.0.61
+	github.com/google/uuid v1.1.1
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/rs/zerolog v1.17.2
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/sethgrid/pester v1.1.0
-	github.com/stretchr/testify v1.6.1
-	gopkg.in/yaml.v2 v2.2.8
+	github.com/stretchr/testify v1.6.1 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 	k8s.io/apimachinery v0.19.2
 	k8s.io/client-go v0.19.2

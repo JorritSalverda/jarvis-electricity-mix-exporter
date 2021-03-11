@@ -3,7 +3,7 @@ package contracts
 type EnergyType string
 
 const (
-	EnergyTypeUnknown        EnergyType = ""
+	EnergyTypeUnknown        EnergyType = "Unknown"
 	EnergyTypeCoal           EnergyType = "Coal"
 	EnergyTypeGas            EnergyType = "Gas"
 	EnergyTypeOil            EnergyType = "Oil"

@@ -5,6 +5,8 @@
 cronjob:
   schedule: '*/5 * * * *'
   concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 1
 
 config:
   entsoeArea: 10YNL----------L

@@ -3,7 +3,7 @@ package contracts
 type MetricType string
 
 const (
-	MetricTypeUnknown MetricType = ""
-	MetricTypeCounter MetricType = "METRIC_TYPE_COUNTER"
-	MetricTypeGauge   MetricType = "METRIC_TYPE_GAUGE"
+	MetricTypeUnknown MetricType = "Unknown"
+	MetricTypeCounter MetricType = "Counter"
+	MetricTypeGauge   MetricType = "Gauge"
 )
