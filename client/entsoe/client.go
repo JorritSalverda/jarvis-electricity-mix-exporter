@@ -63,7 +63,7 @@ func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInte
 		return
 	}
 
-	log.Debug().Str("body", string(body)).Msgf("Response body for aggregated generation per type for in domain %v and time interval %v to %v...", area, timeInterval.Start, timeInterval.End)
+	// log.Debug().Str("body", string(body)).Msgf("Response body for aggregated generation per type for in domain %v and time interval %v to %v...", area, timeInterval.Start, timeInterval.End)
 
 	if resp.StatusCode != http.StatusOK {
 		return response, fmt.Errorf("Request returned unexpected status code %v", resp.StatusCode)

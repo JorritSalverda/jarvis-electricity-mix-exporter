@@ -39,38 +39,33 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 	}
 
 	for {
+		now := time.Now().UTC().Round(time.Duration(entsoe.TimeSlotsInMinutes * time.Minute))
+
 		// if it's the first time begin a year ago, otherwise start at last stored value
 		var start time.Time
-		slotsToRetrieve := 4
 		if lastMeasurement != nil {
 			start = lastMeasurement.MeasuredAtTime
 		} else {
-			start = time.Now().UTC().AddDate(-1, 0, 0).Round(time.Duration(entsoe.TimeSlotsInMinutes * time.Minute))
-			slotsToRetrieve = 4 * 24
+			start = now.AddDate(-1, 0, 0)
 		}
-		end := start.Add(time.Duration(slotsToRetrieve*entsoe.TimeSlotsInMinutes) * time.Minute)
+		end := start.Add(time.Duration(4*24*entsoe.TimeSlotsInMinutes) * time.Minute)
+		if end.After(now) {
+			end = now
+		}
 
-		now := time.Now().UTC()
-		if now.Sub(start).Minutes() < entsoe.TimeSlotsInMinutes {
-			log.Info().Msgf("Difference between start - %v - and now - %v - is less than %v minutes, exiting", start, now, slotsToRetrieve*entsoe.TimeSlotsInMinutes)
+		// don't continue, we're up to date
+		if start.Equal(end) {
+			log.Info().Msgf("Start - %v - and end - %v - are equal, exiting", start, end)
 			return nil
 		}
 
-		timeInterval := entsoe.TimeInterval{
+		// retrieve actual measurements
+		response, err := s.entsoeClient.GetAggregatedGenerationPerType(area, entsoe.TimeInterval{
 			Start: start,
 			End:   end,
-		}
-
-		response, err := s.entsoeClient.GetAggregatedGenerationPerType(area, timeInterval)
+		})
 		if err != nil {
 			return err
-		}
-
-		// check which data is new and can be stored in bigquery
-		startLastPeriod := response.TimePeriod.End.Add(-1 * entsoe.TimeSlotsInMinutes * time.Minute)
-		if lastMeasurement != nil && !lastMeasurement.MeasuredAtTime.Before(startLastPeriod) {
-			log.Info().Msgf("Last measurement was stored at %v and last retrieved period starts at %v, exiting", lastMeasurement.MeasuredAtTime, startLastPeriod)
-			return nil
 		}
 
 		if len(response.TimeSeries) == 0 || len(response.TimeSeries[0].Period.Points) == 0 {
@@ -78,13 +73,19 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 			return nil
 		}
 
-		nrOfPoints := len(response.TimeSeries[0].Period.Points)
-		var lastStoredMeasurement *contractsv1.Measurement
-		for i := 0; i < nrOfPoints; i++ {
-			timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(i*entsoe.TimeSlotsInMinutes) * time.Minute)
+		maxNrOfPoints := 0
+		for _, ts := range response.TimeSeries {
+			nrOfPoints := len(ts.Period.Points)
+			if nrOfPoints > maxNrOfPoints {
+				maxNrOfPoints = nrOfPoints
+			}
+		}
 
-			if lastMeasurement != nil && !timeSlotStartTime.After(lastMeasurement.MeasuredAtTime) {
-				log.Info().Msgf("Timeslot with start time %v has already been stored, continuing to next timeslot", timeSlotStartTime)
+		var lastStoredMeasurement *contractsv1.Measurement
+		for i := 0; i < maxNrOfPoints; i++ {
+			timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(i*entsoe.TimeSlotsInMinutes) * time.Minute)
+			if lastMeasurement != nil && timeSlotStartTime.Equal(lastMeasurement.MeasuredAtTime) {
+				log.Info().Msgf("Timeslot start at %v has already been stored, continuing to next timeslot", timeSlotStartTime)
 				continue
 			}
 
@@ -110,7 +111,7 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 					})
 				} else {
 					// this timeserie seems to have less points, what to do now?
-					log.Warn().Msgf("Timeseries for %v only has %v points, while the first timeserie has %v", ts.MktPsrType.PsrType, len(ts.Period.Points), nrOfPoints)
+					log.Warn().Msgf("Timeseries for %v only has %v points, while the longest timeserie has %v", ts.MktPsrType.PsrType, len(ts.Period.Points), maxNrOfPoints)
 				}
 			}
 
@@ -132,13 +133,7 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 
 			lastMeasurement = lastStoredMeasurement
 		} else {
-			log.Info().Msg("No new measurements were stored, exiting")
-			return nil
-		}
-
-		now = time.Now().UTC()
-		if now.Sub(lastMeasurement.MeasuredAtTime).Minutes() < entsoe.TimeSlotsInMinutes {
-			log.Info().Msgf("Difference between start - %v - and now - %v - is less than %v minutes, exiting", lastMeasurement.MeasuredAtTime, now, slotsToRetrieve*entsoe.TimeSlotsInMinutes)
+			log.Info().Msg("No new measurements were inserted, exiting")
 			return nil
 		}
 
