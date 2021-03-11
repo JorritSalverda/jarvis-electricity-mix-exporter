@@ -4,5 +4,5 @@ type SampleUnit string
 
 const (
 	SampleUnitUnknown  SampleUnit = ""
-	SampleUnitMegaWatt SampleUnit = "MEGA_WATT"
+	SampleUnitMegaWatt SampleUnit = "MegaWatt"
 )

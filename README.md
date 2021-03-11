@@ -12,6 +12,7 @@ helm upgrade \
   --install \
   --namespace jarvis \
   --set secret.gcpServiceAccountKeyfile='{abc: blabla}' \
+  --set secret.entsoeToken='token' \
   --wait
 ```
 

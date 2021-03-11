@@ -61,43 +61,60 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) (err error) {
 	}
 
 	if len(response.TimeSeries) == 0 || len(response.TimeSeries[0].Period.Points) == 0 {
-		log.Info().Msg("Not timeseries or points have been returned, exiting")
+		log.Info().Msg("No timeseries or points have been returned, exiting")
 		return nil
 	}
 
 	nrOfPoints := len(response.TimeSeries[0].Period.Points)
-
+	var lastStoredMeasurement *contractsv1.Measurement
 	for i := 0; i < nrOfPoints; i++ {
+		timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(i*entsoe.TimeSlotsInMinutes) * time.Minute)
+
+		if lastMeasurement != nil && !timeSlotStartTime.After(lastMeasurement.MeasuredAtTime) {
+			log.Info().Msgf("Timeslot with start time %v has already been stored, continuing to next timeslot", timeSlotStartTime)
+			continue
+		}
+
 		measurement := contractsv1.Measurement{
 			Source:         "ENTSOE",
 			Area:           area.GetCountryCode(),
-			MeasuredAtTime: response.TimePeriod.Start.Add(time.Duration(i*entsoe.TimeSlotsInMinutes) * time.Minute),
+			MeasuredAtTime: timeSlotStartTime,
 		}
 
 		// insert all periods that started after last inserted one
 		for _, ts := range response.TimeSeries {
+			energyType := s.mapToEnergyType(ts.MktPsrType.PsrType)
 			if i < len(ts.Period.Points) {
-
 				measurement.Samples = append(measurement.Samples, &contractsv1.Sample{
-					EnergyType: s.mapToEnergyType(ts.MktPsrType.PsrType),
+					EnergyType:      energyType,
+					IsRenewable:     energyType.IsRenewable(),
+					MetricType:      contractsv1.MetricTypeGauge,
+					SampleDirection: s.mapToSampleDirection(ts),
+					SampleUnit:      s.mapToSampleUnit(ts.QuanityMeasurementUnit),
+					Value:           ts.Period.Points[i].Quantity,
 				})
-
-				// ts.Period.Points[i].Quantity
-			}
-
-			// store measurement
-			err = s.bigqueryClient.InsertMeasurement(measurement)
-			if err != nil {
-				return
+			} else {
+				// this timeserie seems to have less points, what to do now?
+				log.Warn().Msgf("Timeseries for %v only has %v points, while the first timeserie has %v", ts.MktPsrType.PsrType, len(ts.Period.Points), nrOfPoints)
 			}
 		}
+
+		// store measurement
+		err = s.bigqueryClient.InsertMeasurement(measurement)
+		if err != nil {
+			return
+		}
+
+		lastStoredMeasurement = &measurement
 	}
 
-	// // store state
-	// err = s.stateClient.StoreState(ctx, measurement)
-	// if err != nil {
-	// 	return
-	// }
+	if lastStoredMeasurement != nil {
+		// store state
+		err = s.stateClient.StoreState(ctx, *lastStoredMeasurement)
+		if err != nil {
+			return
+		}
+	}
 
 	return nil
 }
@@ -149,4 +166,23 @@ func (s *service) mapToEnergyType(psrType entsoe.PsrType) contractsv1.EnergyType
 	}
 
 	return contractsv1.EnergyTypeUnknown
+}
+
+func (s *service) mapToSampleDirection(timeSerie entsoe.TimeSerie) contractsv1.SampleDirection {
+	if timeSerie.InBiddingZone != entsoe.AreaUnknown {
+		return contractsv1.SampleDirectionIn
+	}
+	if timeSerie.OutBiddingZone != entsoe.AreaUnknown {
+		return contractsv1.SampleDirectionOut
+	}
+
+	return contractsv1.SampleDirectionUnknown
+}
+
+func (s *service) mapToSampleUnit(measurementUnit entsoe.MeasurementUnit) contractsv1.SampleUnit {
+	if measurementUnit == entsoe.MeasurementUnitMegaWatt {
+		return contractsv1.SampleUnitMegaWatt
+	}
+
+	return contractsv1.SampleUnitUnknown
 }
