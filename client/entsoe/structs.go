@@ -21,6 +21,7 @@ type TimeInterval struct {
 }
 
 type TimeSerie struct {
+	ID                     int             `xml:"mRID"`
 	InBiddingZone          Area            `xml:"inBiddingZone_Domain.mRID"`
 	OutBiddingZone         Area            `xml:"outBiddingZone_Domain.mRID"`
 	QuanityMeasurementUnit MeasurementUnit `xml:"quantity_Measure_Unit.name"`

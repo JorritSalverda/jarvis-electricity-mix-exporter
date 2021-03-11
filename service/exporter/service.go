@@ -68,21 +68,15 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 			return err
 		}
 
-		if len(response.TimeSeries) == 0 || len(response.TimeSeries[0].Period.Points) == 0 {
-			log.Info().Msg("No timeseries or points have been returned, exiting")
+		if len(response.TimeSeries) == 0 {
+			log.Info().Msg("No timeseries have been returned, exiting")
 			return nil
 		}
 
-		maxNrOfPoints := 0
-		for _, ts := range response.TimeSeries {
-			nrOfPoints := len(ts.Period.Points)
-			if nrOfPoints > maxNrOfPoints {
-				maxNrOfPoints = nrOfPoints
-			}
-		}
+		nrOfSlots := int(response.TimePeriod.End.Sub(response.TimePeriod.Start).Minutes() / entsoe.TimeSlotsInMinutes)
 
 		var lastStoredMeasurement *contractsv1.Measurement
-		for i := 0; i < maxNrOfPoints; i++ {
+		for i := 0; i < nrOfSlots; i++ {
 			timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(i*entsoe.TimeSlotsInMinutes) * time.Minute)
 			if lastMeasurement != nil && timeSlotStartTime.Equal(lastMeasurement.MeasuredAtTime) {
 				log.Info().Msgf("Timeslot start at %v has already been stored, continuing to next timeslot", timeSlotStartTime)
@@ -98,8 +92,23 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 
 			// insert all periods that started after last inserted one
 			for _, ts := range response.TimeSeries {
+				if ts.Period.TimeInterval.Start.After(timeSlotStartTime) {
+					log.Info().Msgf("Timeserie %v for psr type %v starts after time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+					continue
+				}
+				if ts.Period.TimeInterval.End.Equal(timeSlotStartTime) {
+					log.Info().Msgf("Timeserie %v for psr type %v ends at time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+					continue
+				}
+				if ts.Period.TimeInterval.End.Before(timeSlotStartTime) {
+					log.Info().Msgf("Timeserie %v for psr type %v ends before time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+					continue
+				}
+
+				pointIndexForSlot := int(timeSlotStartTime.Sub(ts.Period.TimeInterval.Start).Minutes() / entsoe.TimeSlotsInMinutes)
+
 				energyType := s.mapToEnergyType(ts.MktPsrType.PsrType)
-				if i < len(ts.Period.Points) {
+				if pointIndexForSlot < len(ts.Period.Points) {
 					measurement.Samples = append(measurement.Samples, &contractsv1.Sample{
 						EnergyType:         energyType,
 						OriginalEnergyType: string(ts.MktPsrType.PsrType),
@@ -107,11 +116,11 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 						MetricType:         contractsv1.MetricTypeGauge,
 						SampleDirection:    s.mapToSampleDirection(ts),
 						SampleUnit:         s.mapToSampleUnit(ts.QuanityMeasurementUnit),
-						Value:              ts.Period.Points[i].Quantity,
+						Value:              ts.Period.Points[pointIndexForSlot].Quantity,
 					})
 				} else {
 					// this timeserie seems to have less points, what to do now?
-					log.Warn().Msgf("Timeseries for %v only has %v points, while the longest timeserie has %v", ts.MktPsrType.PsrType, len(ts.Period.Points), maxNrOfPoints)
+					log.Warn().Msgf("Timeserie %v for psr type %v only has %v points, while index %v should be retrieved", ts.ID, ts.MktPsrType.PsrType, len(ts.Period.Points), pointIndexForSlot)
 				}
 			}
 
@@ -138,6 +147,7 @@ func (s *service) Run(ctx context.Context, area entsoe.Area) error {
 		}
 
 		// otherwise wait a bit before starting next loop iteration to avoid hitting rate limits
+		log.Info().Msg("Sleeping for 30 seconds before retrieving more data, to avoid rate limiting")
 		time.Sleep(time.Duration(30) * time.Second)
 	}
 }
