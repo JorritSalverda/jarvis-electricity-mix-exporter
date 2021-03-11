@@ -179,15 +179,15 @@ func (s *service) createMeasurementForTimeSlot(response entsoe.GetAggregatedGene
 	// insert all periods that started after last inserted one
 	for _, ts := range response.TimeSeries {
 		if ts.Period.TimeInterval.Start.After(timeSlotStartTime) {
-			log.Info().Msgf("Timeserie %v for psr type %v starts after time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+			// log.Info().Msgf("Timeserie %v for psr type %v starts after time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
 			continue
 		}
 		if ts.Period.TimeInterval.End.Equal(timeSlotStartTime) {
-			log.Info().Msgf("Timeserie %v for psr type %v ends at time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+			// log.Info().Msgf("Timeserie %v for psr type %v ends at time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
 			continue
 		}
 		if ts.Period.TimeInterval.End.Before(timeSlotStartTime) {
-			log.Info().Msgf("Timeserie %v for psr type %v ends before time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
+			// log.Info().Msgf("Timeserie %v for psr type %v ends before time slot %v, continuing to next timeserie", ts.ID, ts.MktPsrType.PsrType, timeSlotStartTime)
 			continue
 		}
 
