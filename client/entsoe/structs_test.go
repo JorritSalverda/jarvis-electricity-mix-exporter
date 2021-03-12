@@ -182,9 +182,9 @@ func TestUnmarshal(t *testing.T) {
 		assert.Equal(t, 1581.0, response.TimeSeries[1].Period.Points[1].Quantity)
 	})
 
-	t.Run("ReadsTestResponse", func(t *testing.T) {
+	t.Run("ReadsA75Response", func(t *testing.T) {
 
-		testResponse, _ := ioutil.ReadFile("test-response.xml")
+		testResponse, _ := ioutil.ReadFile("A75-response.xml")
 		var response GetAggregatedGenerationPerTypeResponse
 
 		// act
@@ -193,6 +193,24 @@ func TestUnmarshal(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, 39, len(response.TimeSeries))
 		assert.Equal(t, 5, response.TimeSeries[4].ID)
+		assert.Equal(t, ResolutionPT15M, response.TimeSeries[4].Period.Resolution)
+		assert.Equal(t, 92, len(response.TimeSeries[4].Period.Points))
 		assert.Equal(t, 5046.0, response.TimeSeries[4].Period.Points[0].Quantity)
+	})
+
+	t.Run("ReadsA11Response", func(t *testing.T) {
+
+		testResponse, _ := ioutil.ReadFile("A11-response.xml")
+		var response GetPhysicalCrossBorderFlowResponse
+
+		// act
+		err := xml.Unmarshal([]byte(testResponse), &response)
+
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(response.TimeSeries))
+		assert.Equal(t, 1, response.TimeSeries[0].ID)
+		assert.Equal(t, ResolutionPT60M, response.TimeSeries[0].Period.Resolution)
+		assert.Equal(t, 14, len(response.TimeSeries[0].Period.Points))
+		assert.Equal(t, 701.0, response.TimeSeries[0].Period.Points[0].Quantity)
 	})
 }

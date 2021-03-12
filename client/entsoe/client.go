@@ -18,6 +18,7 @@ var (
 
 type Client interface {
 	GetAggregatedGenerationPerType(area Area, timeInterval TimeInterval) (response GetAggregatedGenerationPerTypeResponse, err error)
+	GetPhysicalCrossBorderFlow(area Area, areaPeer Area, timeInterval TimeInterval) (response GetPhysicalCrossBorderFlowResponse, err error)
 }
 
 func NewClient(securityToken string) (Client, error) {
@@ -74,6 +75,54 @@ func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInte
 	if resp.StatusCode != http.StatusOK {
 
 		log.Debug().Str("body", string(body)).Msgf("%v GET %v", resp.StatusCode, strings.Replace(getAggregatedGenerationPerTypeURL, c.securityToken, "***", -1))
+
+		if resp.StatusCode == http.StatusBadRequest && strings.Contains(string(body), "No matching data found") {
+			return response, ErrNoMatchingDataFound
+		}
+
+		return response, fmt.Errorf("Request returned unexpected status code %v", resp.StatusCode)
+	}
+
+	err = xml.Unmarshal(body, &response)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (c *client) GetPhysicalCrossBorderFlow(area Area, areaPeer Area, timeInterval TimeInterval) (response GetPhysicalCrossBorderFlowResponse, err error) {
+	// https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html#_physical_flows_12_1_g
+
+	// 4.2.15. Physical Flows [12.1.G]
+	// - One year range limit applies
+	// - Minimum time interval in query response is MTU period
+	// - Mandatory parameters
+	//   - DocumentType
+	//   - In_Domain
+	//   - Out_Domain
+	//   - TimeInterval or combination of PeriodStart and PeriodEnd
+	// - Data are provided without netting because only one direction is requested
+
+	log.Info().Msgf("Getting physical flow between domain %v and domain %v and time interval %v to %v...", area, areaPeer, timeInterval.Start, timeInterval.End)
+
+	getPhysicalCrossBorderFlowURL := fmt.Sprintf("%v?securityToken=%v&documentType=%v&in_Domain=%v&out_Domain=%v&timeInterval=%v", c.apiBaseURL, c.securityToken, DocumentTypeAggregatedEnergyDataReport, area, areaPeer, timeInterval.FormatAsParameter())
+
+	log.Debug().Msgf("GET %v", strings.Replace(getPhysicalCrossBorderFlowURL, c.securityToken, "***", -1))
+
+	resp, err := pester.Get(getPhysicalCrossBorderFlowURL)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+
+		log.Debug().Str("body", string(body)).Msgf("%v GET %v", resp.StatusCode, strings.Replace(getPhysicalCrossBorderFlowURL, c.securityToken, "***", -1))
 
 		if resp.StatusCode == http.StatusBadRequest && strings.Contains(string(body), "No matching data found") {
 			return response, ErrNoMatchingDataFound

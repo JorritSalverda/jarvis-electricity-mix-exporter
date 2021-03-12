@@ -14,7 +14,7 @@ func TestCreateMeasurementForTimeSlot(t *testing.T) {
 	t.Run("CreatesSamplesForEachTimeSeriesThatHasAPointForFirstTimeSlot", func(t *testing.T) {
 
 		service := service{}
-		testResponse, _ := ioutil.ReadFile("../../client/entsoe/test-response.xml")
+		testResponse, _ := ioutil.ReadFile("../../client/entsoe/A75-response.xml")
 		var response entsoe.GetAggregatedGenerationPerTypeResponse
 		err := xml.Unmarshal([]byte(testResponse), &response)
 		assert.Nil(t, err)
@@ -28,7 +28,7 @@ func TestCreateMeasurementForTimeSlot(t *testing.T) {
 	t.Run("CreatesSamplesForEachTimeSeriesThatHasAPointForLastTimeSlot", func(t *testing.T) {
 
 		service := service{}
-		testResponse, _ := ioutil.ReadFile("../../client/entsoe/test-response.xml")
+		testResponse, _ := ioutil.ReadFile("../../client/entsoe/A75-response.xml")
 		var response entsoe.GetAggregatedGenerationPerTypeResponse
 		err := xml.Unmarshal([]byte(testResponse), &response)
 		assert.Nil(t, err)
@@ -46,7 +46,7 @@ func TestCreateMeasurementForTimeSlot(t *testing.T) {
 		}
 
 		service := service{}
-		testResponse, _ := ioutil.ReadFile("../../client/entsoe/test-response.xml")
+		testResponse, _ := ioutil.ReadFile("../../client/entsoe/A75-response.xml")
 		var response entsoe.GetAggregatedGenerationPerTypeResponse
 		err := xml.Unmarshal([]byte(testResponse), &response)
 		assert.Nil(t, err)
@@ -66,7 +66,7 @@ func TestCreateMeasurementForTimeSlot(t *testing.T) {
 	t.Run("CreatesSamplesForEachTimeSeriesThatHasAPointForLastTimeSlot", func(t *testing.T) {
 
 		service := service{}
-		testResponse, _ := ioutil.ReadFile("../../client/entsoe/test-response.xml")
+		testResponse, _ := ioutil.ReadFile("../../client/entsoe/A75-response.xml")
 		var response entsoe.GetAggregatedGenerationPerTypeResponse
 		err := xml.Unmarshal([]byte(testResponse), &response)
 		assert.Nil(t, err)

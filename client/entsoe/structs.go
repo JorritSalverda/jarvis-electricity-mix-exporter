@@ -9,10 +9,10 @@ import (
 const TimeSlotsInMinutes = 15
 
 type GetAggregatedGenerationPerTypeResponse struct {
-	DocumentType DocumentType `xml:"type"`
-	ProcessType  ProcessType  `xml:"process.processType"`
-	TimePeriod   TimeInterval `xml:"time_Period.timeInterval"`
-	TimeSeries   []TimeSerie  `xml:"TimeSeries"`
+	DocumentType DocumentType                    `xml:"type"`
+	ProcessType  ProcessType                     `xml:"process.processType"`
+	TimePeriod   TimeInterval                    `xml:"time_Period.timeInterval"`
+	TimeSeries   []AggregatedGenerationTimeSerie `xml:"TimeSeries"`
 }
 
 type TimeInterval struct {
@@ -20,7 +20,7 @@ type TimeInterval struct {
 	End   time.Time `xml:"end"`
 }
 
-type TimeSerie struct {
+type AggregatedGenerationTimeSerie struct {
 	ID                     int             `xml:"mRID"`
 	InBiddingZone          Area            `xml:"inBiddingZone_Domain.mRID"`
 	OutBiddingZone         Area            `xml:"outBiddingZone_Domain.mRID"`
@@ -33,12 +33,26 @@ type TimeSerie struct {
 
 type TimeSeriePeriod struct {
 	TimeInterval TimeInterval     `xml:"timeInterval"`
+	Resolution   Resolution       `xml:"resolution"`
 	Points       []TimeSeriePoint `xml:"Point"`
 }
 
 type TimeSeriePoint struct {
 	Position int     `xml:"position"`
 	Quantity float64 `xml:"quantity"`
+}
+
+type GetPhysicalCrossBorderFlowResponse struct {
+	TimePeriod TimeInterval            `xml:"period.timeInterval"`
+	TimeSeries []PhysicalFlowTimeSerie `xml:"TimeSeries"`
+}
+
+type PhysicalFlowTimeSerie struct {
+	ID                     int             `xml:"mRID"`
+	InDomain               Area            `xml:"in_Domain.mRID"`
+	OutDomain              Area            `xml:"out_Domain.mRID"`
+	QuanityMeasurementUnit MeasurementUnit `xml:"quantity_Measure_Unit.name"`
+	Period                 TimeSeriePeriod `xml:"Period"`
 }
 
 const timeIntervalLayout = "2006-01-02T15:04Z"
@@ -96,9 +110,10 @@ const (
 type DocumentType string
 
 const (
-	DocumentTypeUnknown                 DocumentType = ""
-	DocumentTypeSystemTotalLoad         DocumentType = "A65"
-	DocumentTypeActualGenerationPerType DocumentType = "A75"
+	DocumentTypeUnknown                    DocumentType = ""
+	DocumentTypeAggregatedEnergyDataReport DocumentType = "A11"
+	DocumentTypeSystemTotalLoad            DocumentType = "A65"
+	DocumentTypeActualGenerationPerType    DocumentType = "A75"
 )
 
 type MeasurementUnit string
@@ -139,4 +154,12 @@ const (
 	PsrTypeDCLink               PsrType = "B22"
 	PsrTypeSubstation           PsrType = "B23"
 	PsrTypeTransformer          PsrType = "B24"
+)
+
+type Resolution string
+
+const (
+	ResolutionUnknown Resolution = ""
+	ResolutionPT15M   Resolution = "PT15M"
+	ResolutionPT60M   Resolution = "PT60M"
 )

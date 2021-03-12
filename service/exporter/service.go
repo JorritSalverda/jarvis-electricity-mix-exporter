@@ -158,7 +158,7 @@ func (s *service) mapToEnergyType(psrType entsoe.PsrType) contractsv1.EnergyType
 	return contractsv1.EnergyTypeUnknown
 }
 
-func (s *service) mapToSampleDirection(timeSerie entsoe.TimeSerie) contractsv1.SampleDirection {
+func (s *service) mapToSampleDirection(timeSerie entsoe.AggregatedGenerationTimeSerie) contractsv1.SampleDirection {
 	if timeSerie.InBiddingZone != entsoe.AreaUnknown {
 		return contractsv1.SampleDirectionIn
 	}
