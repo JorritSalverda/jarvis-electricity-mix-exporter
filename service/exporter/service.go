@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -65,8 +66,12 @@ func (s *service) Run(ctx context.Context, waitGroup *sync.WaitGroup, area entso
 			Start: start,
 			End:   end,
 		})
-		if err != nil {
+		if err != nil && !errors.Is(err, entsoe.ErrNoMatchingDataFound) {
 			return err
+		}
+		if err != nil && errors.Is(err, entsoe.ErrNoMatchingDataFound) {
+			log.Info().Msg("No data has been found, exiting")
+			return nil
 		}
 
 		if len(response.TimeSeries) == 0 {

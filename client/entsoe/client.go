@@ -2,12 +2,18 @@ package entsoe
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sethgrid/pester"
+)
+
+var (
+	ErrNoMatchingDataFound = errors.New("No matching data found")
 )
 
 type Client interface {
@@ -53,6 +59,8 @@ func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInte
 
 	getAggregatedGenerationPerTypeURL := fmt.Sprintf("%v?securityToken=%v&documentType=%v&processType=%v&in_Domain=%v&timeInterval=%v", c.apiBaseURL, c.securityToken, DocumentTypeActualGenerationPerType, ProcessTypeRealised, area, timeInterval.FormatAsParameter())
 
+	log.Debug().Msgf("GET %v", strings.Replace(getAggregatedGenerationPerTypeURL, c.securityToken, "***", -1))
+
 	resp, err := pester.Get(getAggregatedGenerationPerTypeURL)
 	if err != nil {
 		return
@@ -63,9 +71,14 @@ func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInte
 		return
 	}
 
-	// log.Debug().Str("body", string(body)).Msgf("Response body for aggregated generation per type for in domain %v and time interval %v to %v...", area, timeInterval.Start, timeInterval.End)
-
 	if resp.StatusCode != http.StatusOK {
+
+		log.Debug().Str("body", string(body)).Msgf("%v GET %v", resp.StatusCode, strings.Replace(getAggregatedGenerationPerTypeURL, c.securityToken, "***", -1))
+
+		if resp.StatusCode == http.StatusBadRequest && strings.Contains(string(body), "No matching data found") {
+			return response, ErrNoMatchingDataFound
+		}
+
 		return response, fmt.Errorf("Request returned unexpected status code %v", resp.StatusCode)
 	}
 
