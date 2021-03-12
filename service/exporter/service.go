@@ -3,6 +3,7 @@ package exporter
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 )
 
 type Service interface {
-	Run(ctx context.Context, waitGroup *sync.WaitGroup, area entsoe.Area) error
+	Run(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup, area entsoe.Area) error
 }
 
 func NewService(bigqueryClient bigquery.Client, stateClient state.Client, entsoeClient entsoe.Client) (Service, error) {
@@ -32,7 +33,7 @@ type service struct {
 	entsoeClient   entsoe.Client
 }
 
-func (s *service) Run(ctx context.Context, waitGroup *sync.WaitGroup, area entsoe.Area) error {
+func (s *service) Run(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup, area entsoe.Area) error {
 
 	// check if there's a previous measurement stored in state file
 	lastMeasurement, err := s.stateClient.ReadState(ctx)
@@ -98,9 +99,13 @@ func (s *service) Run(ctx context.Context, waitGroup *sync.WaitGroup, area entso
 			return nil
 		}
 
-		// otherwise wait a bit before starting next loop iteration to avoid hitting rate limits
 		log.Info().Msg("Sleeping for 15 seconds before retrieving more data, to avoid rate limiting")
-		time.Sleep(time.Duration(15) * time.Second)
+		select {
+		case signalReceived := <-gracefulShutdown:
+			log.Warn().Msgf("Received signal %v. Waiting for running tasks to finish...", signalReceived)
+			return nil
+		case <-time.After(15 * time.Second):
+		}
 	}
 }
 

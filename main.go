@@ -93,10 +93,10 @@ func main() {
 
 	gracefulShutdown, waitGroup := foundation.InitGracefulShutdownHandling()
 
-	err = exporterService.Run(ctx, waitGroup, entsoe.Area(*entsoeArea))
+	err = exporterService.Run(ctx, gracefulShutdown, waitGroup, entsoe.Area(*entsoeArea))
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed running export")
 	}
 
-	foundation.HandleGracefulShutdown(gracefulShutdown, waitGroup)
+	waitGroup.Wait()
 }
