@@ -9,6 +9,7 @@ type GenerationMeasurement struct {
 	Source         string
 	Area           string
 	Country        string
+	Resolution     string
 	Samples        []*Sample
 	MeasuredAtTime time.Time
 }

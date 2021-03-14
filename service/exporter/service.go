@@ -254,6 +254,10 @@ func (s *service) createGenerationMeasurementForTimeSlot(response apiv1.GetAggre
 			continue
 		}
 
+		if measurement.Resolution == "" {
+			measurement.Resolution = string(ts.Period.Resolution)
+		}
+
 		pointIndexForSlot := int(timeSlotStartTime.Sub(ts.Period.TimeInterval.Start).Minutes() / float64(areaConfig.ResolutionMinutes))
 
 		energyType := s.mapToEnergyType(ts.MktPsrType.PsrType)
@@ -265,7 +269,6 @@ func (s *service) createGenerationMeasurementForTimeSlot(response apiv1.GetAggre
 				MetricType:         apiv1.MetricTypeGauge,
 				SampleDirection:    s.mapToSampleDirection(ts),
 				SampleUnit:         s.mapToSampleUnit(ts.QuanityMeasurementUnit),
-				Resolution:         string(ts.Period.Resolution),
 				Value:              ts.Period.Points[pointIndexForSlot].Quantity,
 			})
 		} else {

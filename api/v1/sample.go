@@ -5,7 +5,6 @@ type Sample struct {
 	OriginalEnergyType string
 	IsRenewable        bool
 	MetricType         MetricType
-	Resolution         string
 	SampleDirection    SampleDirection
 	SampleUnit         SampleUnit
 	Value              float64
