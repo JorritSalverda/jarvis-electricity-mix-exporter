@@ -86,6 +86,7 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 		if end.After(now) {
 			end = now
 		}
+		log.Debug().Interface("lastState", lastState).Interface("areaConfig", areaConfig).Interface("start", start).Interface("end", end).Msgf("Initalized start and end time")
 
 		// don't continue, we're up to date
 		if !start.Before(end) {
@@ -229,8 +230,9 @@ func (s *service) mapToSampleUnit(measurementUnit apiv1.MeasurementUnit) apiv1.S
 func (s *service) createGenerationMeasurementForTimeSlot(response apiv1.GetAggregatedGenerationPerTypeResponse, timeSlotStartTime time.Time, areaConfig apiv1.AreaConfig) apiv1.GenerationMeasurement {
 	measurement := apiv1.GenerationMeasurement{
 		ID:             uuid.New().String(),
-		Source:         "ENTSOE",
-		Area:           areaConfig.Area.GetCountryCode(),
+		Source:         string(areaConfig.Source),
+		Area:           string(areaConfig.Area),
+		Country:        string(areaConfig.Country),
 		MeasuredAtTime: timeSlotStartTime,
 	}
 

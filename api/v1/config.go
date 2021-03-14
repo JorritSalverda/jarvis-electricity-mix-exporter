@@ -68,7 +68,7 @@ func (c *Config) Validate() (valid bool, errors []error, warnings []string) {
 
 func (ac *AreaConfig) validate() (errors []error, warnings []string) {
 	if ac.Source == SourceUnknown {
-		errors = append(errors, fmt.Errorf("Source for area is unknown, set with `source: entsoe`"))
+		errors = append(errors, fmt.Errorf("Source for area is unknown, set with `source: ENTSOE`"))
 	}
 	if ac.Country == CountryCodeUnknown {
 		errors = append(errors, fmt.Errorf("Country for area is unknown, set with `country: NL`"))
@@ -87,7 +87,7 @@ func (ac *AreaConfig) validate() (errors []error, warnings []string) {
 
 func (ec *ExchangeConfig) validate() (errors []error, warnings []string) {
 	if ec.Source == SourceUnknown {
-		errors = append(errors, fmt.Errorf("Source for area is unknown, set with `source: entsoe`"))
+		errors = append(errors, fmt.Errorf("Source for area is unknown, set with `source: ENTSOE`"))
 	}
 	if ec.Country == CountryCodeUnknown {
 		errors = append(errors, fmt.Errorf("Country for area is unknown, set with `country: NL`"))
@@ -103,7 +103,7 @@ type Source string
 
 const (
 	SourceUnknown Source = ""
-	SourceEntsoe  Source = "entsoe"
+	SourceEntsoe  Source = "ENTSOE"
 )
 
 type CountryCode string
