@@ -111,14 +111,35 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 			return nil
 		}
 
+		waitGroup.Add(1)
+		log.Debug().Interface("lastState", lastState).Msg("State before inserting measurements")
 		for i := 0; i < nrOfSlots; i++ {
-			log.Debug().Interface("lastState", lastState).Msg("Before handleTimeSlot")
-			err := s.handleTimeSlot(ctx, response, i, areaConfig, waitGroup, lastState)
-			log.Debug().Interface("lastState", lastState).Msg("After handleTimeSlot")
+			timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(i*areaConfig.ResolutionMinutes) * time.Minute)
+			measurement := s.createGenerationMeasurementForTimeSlot(response, timeSlotStartTime, areaConfig)
+
+			// store measurement
+			err = s.generationBigqueryClient.InsertMeasurement(measurement)
 			if err != nil {
 				return err
 			}
+
+			// update state
+			if lastState == nil {
+				lastState = &apiv1.State{}
+			}
+			if lastState.LastRetrievedGenerationTime == nil {
+				lastState.LastRetrievedGenerationTime = make(map[apiv1.Area]time.Time, 0)
+			}
+			lastState.LastRetrievedGenerationTime[areaConfig.Area] = measurement.MeasuredAtTime
 		}
+		log.Debug().Interface("lastState", lastState).Msg("State after inserting measurements")
+
+		// store state
+		err = s.stateClient.StoreState(ctx, *lastState)
+		if err != nil {
+			return err
+		}
+		waitGroup.Done()
 
 		log.Info().Msg("Sleeping for 15 seconds before retrieving more data, to avoid rate limiting")
 		select {
@@ -241,35 +262,4 @@ func (s *service) createGenerationMeasurementForTimeSlot(response apiv1.GetAggre
 	}
 
 	return measurement
-}
-
-func (s *service) handleTimeSlot(ctx context.Context, response apiv1.GetAggregatedGenerationPerTypeResponse, timeSlotIndex int, areaConfig apiv1.AreaConfig, waitGroup *sync.WaitGroup, lastState *apiv1.State) (err error) {
-	timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(timeSlotIndex*areaConfig.ResolutionMinutes) * time.Minute)
-
-	measurement := s.createGenerationMeasurementForTimeSlot(response, timeSlotStartTime, areaConfig)
-
-	// store measurement
-	waitGroup.Add(1)
-	defer waitGroup.Done()
-	err = s.generationBigqueryClient.InsertMeasurement(measurement)
-	if err != nil {
-		return
-	}
-
-	// update state
-	if lastState == nil {
-		lastState = &apiv1.State{}
-	}
-	if lastState.LastRetrievedGenerationTime == nil {
-		lastState.LastRetrievedGenerationTime = make(map[apiv1.Area]time.Time, 0)
-	}
-	lastState.LastRetrievedGenerationTime[areaConfig.Area] = measurement.MeasuredAtTime
-
-	// store state
-	err = s.stateClient.StoreState(ctx, *lastState)
-	if err != nil {
-		return
-	}
-
-	return
 }
