@@ -67,7 +67,7 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 		now := time.Now().UTC().Round(time.Duration(areaConfig.ResolutionMinutes) * time.Minute)
 
 		// if it's the first time begin a year ago, otherwise start at last stored value
-		start := now.AddDate(-1, 0, 0)
+		start := now.AddDate(areaConfig.StartYearsAgo, areaConfig.StartMonthsAgo, areaConfig.StartDaysAgo)
 		if lastState == nil && lastState.LastRetrievedGenerationTime != nil {
 			if lastRetrievedGenerationTime, ok := lastState.LastRetrievedGenerationTime[areaConfig.Area]; ok {
 				start = lastRetrievedGenerationTime.Add(time.Duration(areaConfig.ResolutionMinutes) * time.Minute)

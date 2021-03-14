@@ -1,6 +1,9 @@
 areas:
 - area: '10YNL----------L'
   country: 'NL'
+  startYearsAgo: 1
+  startMonthsAgo: 2
+  startDaysAgo: 3
   exchanges:
   - area: '10YBE----------2'
     country: 'BE'

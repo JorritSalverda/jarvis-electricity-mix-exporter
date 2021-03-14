@@ -19,6 +19,9 @@ config:
     areas:
     - area: '10YNL----------L'
       country: 'NL'
+      startYearsAgo: 0
+      startMonthsAgo: 0
+      startDaysAgo: 7
       exchanges:
       - area: '10YBE----------2'
         country: 'BE'
@@ -32,14 +35,19 @@ config:
         country: 'NO'
     - area: '10YBE----------2'
       country: 'BE'
+      startDaysAgo: 7
     - area: '10Y1001A1001A83F'
       country: 'DE'
+      startDaysAgo: 7
     - area: '10YDK-1--------W'
       country: 'DK'
+      startDaysAgo: 7
     - area: '10YGB----------A'
       country: 'GB'
+      startDaysAgo: 7
     - area: '10YNO-2--------T'
       country: 'NO'
+      startDaysAgo: 7
 
 secret:
   gcpServiceAccountKeyfile: '{}'

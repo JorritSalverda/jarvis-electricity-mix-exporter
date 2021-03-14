@@ -13,6 +13,9 @@ type AreaConfig struct {
 	Country           CountryCode       `yaml:"country"`
 	Source            Source            `yaml:"source"`
 	ResolutionMinutes int               `yaml:"resolutionMinutes"`
+	StartYearsAgo     int               `yaml:"startYearsAgo"`
+	StartMonthsAgo    int               `yaml:"startMonthsAgo"`
+	StartDaysAgo      int               `yaml:"startDaysAgo"`
 	Exchanges         []*ExchangeConfig `yaml:"exchanges"`
 }
 
