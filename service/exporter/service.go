@@ -265,6 +265,7 @@ func (s *service) createGenerationMeasurementForTimeSlot(response apiv1.GetAggre
 				MetricType:         apiv1.MetricTypeGauge,
 				SampleDirection:    s.mapToSampleDirection(ts),
 				SampleUnit:         s.mapToSampleUnit(ts.QuanityMeasurementUnit),
+				Resolution:         string(ts.Period.Resolution),
 				Value:              ts.Period.Points[pointIndexForSlot].Quantity,
 			})
 		} else {
