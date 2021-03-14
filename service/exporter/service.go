@@ -52,16 +52,23 @@ func (s *service) Run(ctx context.Context, gracefulShutdown chan os.Signal, wait
 	}
 
 	for _, areaConfig := range config.Areas {
-		err = s.runForArea(ctx, gracefulShutdown, waitGroup, *areaConfig, lastState)
+		lastState, err = s.runForArea(ctx, gracefulShutdown, waitGroup, *areaConfig, lastState)
 		if err != nil {
 			return err
+		}
+
+		select {
+		case signalReceived := <-gracefulShutdown:
+			log.Warn().Msgf("Received signal %v. Waiting for running tasks to finish...", signalReceived)
+			return nil
+		case <-time.After(5 * time.Second):
 		}
 	}
 
 	return nil
 }
 
-func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup, areaConfig apiv1.AreaConfig, lastState *apiv1.State) error {
+func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup, areaConfig apiv1.AreaConfig, lastState *apiv1.State) (*apiv1.State, error) {
 
 	log.Info().Interface("areaConfig", areaConfig).Msgf("Retrieving measurements for area %v / country %v", areaConfig.Area, areaConfig.Country)
 
@@ -83,7 +90,7 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 		// don't continue, we're up to date
 		if !start.Before(end) {
 			log.Info().Msgf("Start - %v - and end - %v - are equal, exiting", start, end)
-			return nil
+			return lastState, nil
 		}
 
 		// retrieve actual measurements
@@ -92,23 +99,23 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 			End:   end,
 		})
 		if err != nil && !errors.Is(err, entsoe.ErrNoMatchingDataFound) {
-			return err
+			return lastState, err
 		}
 		if err != nil && errors.Is(err, entsoe.ErrNoMatchingDataFound) {
 			log.Info().Msg("No data has been found, exiting")
-			return nil
+			return lastState, nil
 		}
 
 		if len(response.TimeSeries) == 0 {
 			log.Info().Msg("No timeseries have been returned, exiting")
-			return nil
+			return lastState, nil
 		}
 
 		nrOfSlots := int(response.TimePeriod.End.Sub(response.TimePeriod.Start).Minutes() / float64(areaConfig.ResolutionMinutes))
 
 		if nrOfSlots == 0 {
 			log.Info().Msg("No new measurements were inserted, exiting")
-			return nil
+			return lastState, nil
 		}
 
 		waitGroup.Add(1)
@@ -120,7 +127,7 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 			// store measurement
 			err = s.generationBigqueryClient.InsertMeasurement(measurement)
 			if err != nil {
-				return err
+				return lastState, err
 			}
 
 			// update state
@@ -137,7 +144,7 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 		// store state
 		err = s.stateClient.StoreState(ctx, *lastState)
 		if err != nil {
-			return err
+			return lastState, err
 		}
 		waitGroup.Done()
 
@@ -145,7 +152,7 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 		select {
 		case signalReceived := <-gracefulShutdown:
 			log.Warn().Msgf("Received signal %v. Waiting for running tasks to finish...", signalReceived)
-			return nil
+			return lastState, nil
 		case <-time.After(15 * time.Second):
 		}
 	}
