@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	googlebigquery "cloud.google.com/go/bigquery"
@@ -182,10 +181,12 @@ func (c *client) InsertMeasurement(measurement interface{}) (err error) {
 		return nil
 	}
 
-	// check if measurement is of correct type
-	if reflect.TypeOf(measurement) != c.typeForSchema {
-		return ErrIncorrectTypeMeasurement
-	}
+	// // check if measurement is of correct type
+	// if reflect.TypeOf(measurement) != c.typeForSchema {
+	// 	return ErrIncorrectTypeMeasurement
+	// }
+
+	log.Debug().Msgf("Inserting measurement of type %T", measurement)
 
 	tbl := c.client.Dataset(c.dataset).Table(c.table)
 
