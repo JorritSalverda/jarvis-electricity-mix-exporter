@@ -86,7 +86,10 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 		if end.After(now) {
 			end = now
 		}
-		log.Debug().Interface("lastState", lastState).Interface("areaConfig", areaConfig).Interface("start", start).Interface("end", end).Msgf("Initalized start and end time")
+		log.Debug().Interface("lastState", lastState).Msg("lastState")
+		log.Debug().Interface("areaConfig", areaConfig).Msg("areaConfig")
+		log.Debug().Msgf("start: %v", start)
+		log.Debug().Msgf("end: %v", end)
 
 		// don't continue, we're up to date
 		if !start.Before(end) {
