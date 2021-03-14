@@ -181,13 +181,6 @@ func (c *client) InsertMeasurement(measurement interface{}) (err error) {
 		return nil
 	}
 
-	// // check if measurement is of correct type
-	// if reflect.TypeOf(measurement) != c.typeForSchema {
-	// 	return ErrIncorrectTypeMeasurement
-	// }
-
-	log.Debug().Msgf("Inserting measurement of type %T", measurement)
-
 	tbl := c.client.Dataset(c.dataset).Table(c.table)
 
 	u := tbl.Uploader()
