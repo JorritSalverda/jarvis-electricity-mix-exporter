@@ -38,8 +38,8 @@ var (
 	bigqueryExchangeTable   = kingpin.Flag("bigquery-exchange-table", "Name of the BigQuery table with generation measurements").Envar("BQ_EXCHANGE_TABLE").Required().String()
 
 	configPath                   = kingpin.Flag("config-path", "Path to the config.yaml file").Default("/configs/config.yaml").OverrideDefaultFromEnvar("CONFIG_PATH").String()
-	measurementFilePath          = kingpin.Flag("state-file-path", "Path to file with state.").Default("/configs/last-measurement.json").OverrideDefaultFromEnvar("MEASUREMENT_FILE_PATH").String()
-	measurementFileConfigMapName = kingpin.Flag("state-file-configmap-name", "Name of the configmap with state file.").Default("jarvis-electricity-mix-exporter").OverrideDefaultFromEnvar("MEASUREMENT_FILE_CONFIG_MAP_NAME").String()
+	measurementFilePath          = kingpin.Flag("state-file-path", "Path to file with state.").Default("/configs/last-state.json").OverrideDefaultFromEnvar("STATE_FILE_PATH").String()
+	measurementFileConfigMapName = kingpin.Flag("state-file-configmap-name", "Name of the configmap with state file.").Default("jarvis-electricity-mix-exporter").OverrideDefaultFromEnvar("STATE_FILE_CONFIG_MAP_NAME").String()
 )
 
 func main() {
