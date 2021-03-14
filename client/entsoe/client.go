@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	apiv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/sethgrid/pester"
 )
@@ -17,8 +18,8 @@ var (
 )
 
 type Client interface {
-	GetAggregatedGenerationPerType(area Area, timeInterval TimeInterval) (response GetAggregatedGenerationPerTypeResponse, err error)
-	GetPhysicalCrossBorderFlow(area Area, areaPeer Area, timeInterval TimeInterval) (response GetPhysicalCrossBorderFlowResponse, err error)
+	GetAggregatedGenerationPerType(area apiv1.Area, timeInterval apiv1.TimeInterval) (response apiv1.GetAggregatedGenerationPerTypeResponse, err error)
+	GetPhysicalCrossBorderFlow(area apiv1.Area, areaPeer apiv1.Area, timeInterval apiv1.TimeInterval) (response apiv1.GetPhysicalCrossBorderFlowResponse, err error)
 }
 
 func NewClient(securityToken string) (Client, error) {
@@ -37,7 +38,7 @@ type client struct {
 	securityToken string
 }
 
-func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInterval) (response GetAggregatedGenerationPerTypeResponse, err error) {
+func (c *client) GetAggregatedGenerationPerType(area apiv1.Area, timeInterval apiv1.TimeInterval) (response apiv1.GetAggregatedGenerationPerTypeResponse, err error) {
 
 	// https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html#_aggregated_generation_per_type_16_1_b_c
 
@@ -58,7 +59,7 @@ func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInte
 
 	log.Info().Msgf("Getting aggregated generation per type for in domain %v and time interval %v to %v...", area, timeInterval.Start, timeInterval.End)
 
-	getAggregatedGenerationPerTypeURL := fmt.Sprintf("%v?securityToken=%v&documentType=%v&processType=%v&in_Domain=%v&timeInterval=%v", c.apiBaseURL, c.securityToken, DocumentTypeActualGenerationPerType, ProcessTypeRealised, area, timeInterval.FormatAsParameter())
+	getAggregatedGenerationPerTypeURL := fmt.Sprintf("%v?securityToken=%v&documentType=%v&processType=%v&in_Domain=%v&timeInterval=%v", c.apiBaseURL, c.securityToken, apiv1.DocumentTypeActualGenerationPerType, apiv1.ProcessTypeRealised, area, timeInterval.FormatAsParameter())
 
 	log.Debug().Msgf("GET %v", strings.Replace(getAggregatedGenerationPerTypeURL, c.securityToken, "***", -1))
 
@@ -91,7 +92,7 @@ func (c *client) GetAggregatedGenerationPerType(area Area, timeInterval TimeInte
 	return
 }
 
-func (c *client) GetPhysicalCrossBorderFlow(area Area, areaPeer Area, timeInterval TimeInterval) (response GetPhysicalCrossBorderFlowResponse, err error) {
+func (c *client) GetPhysicalCrossBorderFlow(area apiv1.Area, areaPeer apiv1.Area, timeInterval apiv1.TimeInterval) (response apiv1.GetPhysicalCrossBorderFlowResponse, err error) {
 	// https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html#_physical_flows_12_1_g
 
 	// 4.2.15. Physical Flows [12.1.G]
@@ -106,7 +107,7 @@ func (c *client) GetPhysicalCrossBorderFlow(area Area, areaPeer Area, timeInterv
 
 	log.Info().Msgf("Getting physical flow between domain %v and domain %v and time interval %v to %v...", area, areaPeer, timeInterval.Start, timeInterval.End)
 
-	getPhysicalCrossBorderFlowURL := fmt.Sprintf("%v?securityToken=%v&documentType=%v&in_Domain=%v&out_Domain=%v&timeInterval=%v", c.apiBaseURL, c.securityToken, DocumentTypeAggregatedEnergyDataReport, area, areaPeer, timeInterval.FormatAsParameter())
+	getPhysicalCrossBorderFlowURL := fmt.Sprintf("%v?securityToken=%v&documentType=%v&in_Domain=%v&out_Domain=%v&timeInterval=%v", c.apiBaseURL, c.securityToken, apiv1.DocumentTypeAggregatedEnergyDataReport, area, areaPeer, timeInterval.FormatAsParameter())
 
 	log.Debug().Msgf("GET %v", strings.Replace(getPhysicalCrossBorderFlowURL, c.securityToken, "***", -1))
 

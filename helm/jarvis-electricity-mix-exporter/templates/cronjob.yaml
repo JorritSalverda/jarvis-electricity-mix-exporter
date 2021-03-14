@@ -41,11 +41,6 @@ spec:
             env:
             - name: ESTAFETTE_LOG_FORMAT
               value: {{ .Values.logFormat }}
-            - name: ENTSOE_AREA
-              valueFrom:
-                configMapKeyRef:
-                  key: entsoe-area
-                  name: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
             - name: ENTSOE_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -71,11 +66,16 @@ spec:
                 configMapKeyRef:
                   name: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
                   key: bq-dataset
-            - name: BQ_TABLE
+            - name: BQ_GENERATION_TABLE
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
-                  key: bq-table
+                  key: bq-generation-table
+            - name: BQ_EXCHANGE_TABLE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
+                  key: bq-exchange-table
             - name: MEASUREMENT_FILE_CONFIG_MAP_NAME
               value: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
             - name: GOOGLE_APPLICATION_CREDENTIALS

@@ -1,4 +1,4 @@
-package entsoe
+package api
 
 import (
 	"encoding/xml"

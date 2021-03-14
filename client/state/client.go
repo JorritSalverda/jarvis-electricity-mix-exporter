@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	contractsv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/contracts/v1"
+	apiv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/api/v1"
 	"github.com/rs/zerolog/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -16,50 +16,49 @@ import (
 
 // Client is the interface for retrieving and storing state
 type Client interface {
-	ReadState(ctx context.Context) (lastMeasurement *contractsv1.Measurement, err error)
-	StoreState(ctx context.Context, measurement contractsv1.Measurement) (err error)
+	ReadState(ctx context.Context) (state *apiv1.State, err error)
+	StoreState(ctx context.Context, state apiv1.State) (err error)
 }
 
 // NewClient returns new bigquery.Client
-func NewClient(ctx context.Context, kubeClientset *kubernetes.Clientset, measurementFilePath, measurementFileConfigMapName string) (Client, error) {
-
+func NewClient(kubeClientset *kubernetes.Clientset, stateFilePath, stateFileConfigMapName string) (Client, error) {
 	return &client{
-		kubeClientset:                kubeClientset,
-		measurementFilePath:          measurementFilePath,
-		measurementFileConfigMapName: measurementFileConfigMapName,
+		kubeClientset:          kubeClientset,
+		stateFilePath:          stateFilePath,
+		stateFileConfigMapName: stateFileConfigMapName,
 	}, nil
 }
 
 type client struct {
-	kubeClientset                *kubernetes.Clientset
-	measurementFilePath          string
-	measurementFileConfigMapName string
+	kubeClientset          *kubernetes.Clientset
+	stateFilePath          string
+	stateFileConfigMapName string
 }
 
-func (c *client) ReadState(ctx context.Context) (lastMeasurement *contractsv1.Measurement, err error) {
+func (c *client) ReadState(ctx context.Context) (state *apiv1.State, err error) {
 
 	// check if last measurement file exists in configmap
-	if _, err := os.Stat(c.measurementFilePath); !os.IsNotExist(err) {
-		log.Info().Msgf("File %v exists, reading contents...", c.measurementFilePath)
+	if _, err := os.Stat(c.stateFilePath); !os.IsNotExist(err) {
+		log.Info().Msgf("File %v exists, reading contents...", c.stateFilePath)
 
 		// read state file
-		data, err := ioutil.ReadFile(c.measurementFilePath)
+		data, err := ioutil.ReadFile(c.stateFilePath)
 		if err != nil {
-			return lastMeasurement, fmt.Errorf("Failed reading file from path %v: %w", c.measurementFilePath, err)
+			return nil, fmt.Errorf("Failed reading file from path %v: %w", c.stateFilePath, err)
 		}
 
-		log.Info().Msgf("Unmarshalling file %v contents...", c.measurementFilePath)
+		log.Info().Msgf("Unmarshalling file %v contents...", c.stateFilePath)
 
 		// unmarshal state file
-		if err := json.Unmarshal(data, &lastMeasurement); err != nil {
-			return lastMeasurement, fmt.Errorf("Failed unmarshalling last measurement file: %w", err)
+		if err := json.Unmarshal(data, &state); err != nil {
+			return nil, fmt.Errorf("Failed unmarshalling last measurement file: %w", err)
 		}
 	}
 
 	return
 }
 
-func (c *client) StoreState(ctx context.Context, measurement contractsv1.Measurement) (err error) {
+func (c *client) StoreState(ctx context.Context, state apiv1.State) (err error) {
 
 	currentNamespace, err := c.getCurrentNamespace()
 	if err != nil {
@@ -67,26 +66,26 @@ func (c *client) StoreState(ctx context.Context, measurement contractsv1.Measure
 	}
 
 	// retrieve configmap
-	configMap, err := c.kubeClientset.CoreV1().ConfigMaps(currentNamespace).Get(ctx, c.measurementFileConfigMapName, metav1.GetOptions{})
+	configMap, err := c.kubeClientset.CoreV1().ConfigMaps(currentNamespace).Get(ctx, c.stateFileConfigMapName, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("Failed retrieving configmap %v: %w", c.measurementFileConfigMapName, err)
+		return fmt.Errorf("Failed retrieving configmap %v: %w", c.stateFileConfigMapName, err)
 	}
 
 	// marshal state to json
-	measurementData, err := json.Marshal(measurement)
+	stateData, err := json.Marshal(state)
 	if configMap.Data == nil {
 		configMap.Data = make(map[string]string)
 	}
 
-	configMap.Data[filepath.Base(c.measurementFilePath)] = string(measurementData)
+	configMap.Data[filepath.Base(c.stateFilePath)] = string(stateData)
 
 	// update configmap to have measurement available when the application runs the next time and for other applications
 	_, err = c.kubeClientset.CoreV1().ConfigMaps(currentNamespace).Update(ctx, configMap, metav1.UpdateOptions{})
 	if err != nil {
-		return fmt.Errorf("Failed updating configmap %v: %w", c.measurementFileConfigMapName, err)
+		return fmt.Errorf("Failed updating configmap %v: %w", c.stateFileConfigMapName, err)
 	}
 
-	log.Info().Msgf("Stored measurement in configmap %v...", c.measurementFileConfigMapName)
+	log.Info().Msgf("Stored state in configmap %v...", c.stateFileConfigMapName)
 
 	return nil
 }

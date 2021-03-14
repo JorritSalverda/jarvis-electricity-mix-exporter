@@ -9,12 +9,37 @@ cronjob:
   successfulJobsHistoryLimit: 1
 
 config:
-  entsoeArea: 10YNL----------L
   bqEnable: false
   bqInit: true
   bqProjectID: gcp-project-id
   bqDataset: jarvis
-  bqTable: jarvis_electricy_mix
+  bqGenerationTable: jarvis_electricity_mix_generation
+  bqExchangeTable: jarvis_electricity_mix_exchange
+  configYaml: |
+    areas:
+    - area: '10YNL----------L'
+      country: 'NL'
+      exchanges:
+      - area: '10YBE----------2'
+        country: 'BE'
+      - area: '10Y1001A1001A83F'
+        country: 'DE'
+      - area: '10YDK-1--------W'
+        country: 'DK'
+      - area: '10YGB----------A'
+        country: 'GB'
+      - area: '10YNO-2--------T'
+        country: 'NO'
+    - area: '10YBE----------2'
+      country: 'BE'
+    - area: '10Y1001A1001A83F'
+      country: 'DE'
+    - area: '10YDK-1--------W'
+      country: 'DK'
+    - area: '10YGB----------A'
+      country: 'GB'
+    - area: '10YNO-2--------T'
+      country: 'NO'
 
 secret:
   gcpServiceAccountKeyfile: '{}'

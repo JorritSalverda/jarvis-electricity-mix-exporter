@@ -1,12 +1,10 @@
-package entsoe
+package api
 
 import (
 	"encoding/xml"
 	"fmt"
 	"time"
 )
-
-const TimeSlotsInMinutes = 15
 
 type GetAggregatedGenerationPerTypeResponse struct {
 	DocumentType DocumentType                    `xml:"type"`
@@ -87,8 +85,13 @@ func (t *TimeInterval) UnmarshalXML(d *xml.Decoder, start xml.StartElement) erro
 type Area string
 
 const (
-	AreaUnknown     Area = ""
-	AreaNetherlands Area = "10YNL----------L"
+	AreaUnknown      Area = ""
+	AreaBelgium      Area = "10YBE----------2"
+	AreaDenmark      Area = "10YDK-1--------W"
+	AreaGermany      Area = "10Y1001A1001A83F"
+	AreaGreatBritain Area = "10YGB----------A"
+	AreaNetherlands  Area = "10YNL----------L"
+	AreaNorway       Area = "10YNO-0--------C"
 )
 
 func (a Area) GetCountryCode() string {

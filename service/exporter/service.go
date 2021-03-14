@@ -7,51 +7,73 @@ import (
 	"sync"
 	"time"
 
+	apiv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/api/v1"
 	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/bigquery"
+	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/config"
 	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/entsoe"
 	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/state"
-	contractsv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/contracts/v1"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
 type Service interface {
-	Run(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup, area entsoe.Area) error
+	Run(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup) error
 }
 
-func NewService(bigqueryClient bigquery.Client, stateClient state.Client, entsoeClient entsoe.Client) (Service, error) {
+func NewService(generationBigqueryClient bigquery.Client, exchangeBigqueryClient bigquery.Client, configClient config.Client, stateClient state.Client, entsoeClient entsoe.Client) (Service, error) {
 	return &service{
-		bigqueryClient: bigqueryClient,
-		stateClient:    stateClient,
-		entsoeClient:   entsoeClient,
+		generationBigqueryClient: generationBigqueryClient,
+		exchangeBigqueryClient:   exchangeBigqueryClient,
+		configClient:             configClient,
+		stateClient:              stateClient,
+		entsoeClient:             entsoeClient,
 	}, nil
 }
 
 type service struct {
-	bigqueryClient bigquery.Client
-	stateClient    state.Client
-	entsoeClient   entsoe.Client
+	generationBigqueryClient bigquery.Client
+	exchangeBigqueryClient   bigquery.Client
+	configClient             config.Client
+	stateClient              state.Client
+	entsoeClient             entsoe.Client
 }
 
-func (s *service) Run(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup, area entsoe.Area) error {
+func (s *service) Run(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup) error {
 
-	// check if there's a previous measurement stored in state file
-	lastMeasurement, err := s.stateClient.ReadState(ctx)
+	config, err := s.configClient.ReadConfig()
 	if err != nil {
 		return err
 	}
 
+	// check if there's a previous measurement stored in state file
+	lastState, err := s.stateClient.ReadState(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, areaConfig := range config.Areas {
+		err = s.runForArea(ctx, gracefulShutdown, waitGroup, *areaConfig, lastState)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup, areaConfig apiv1.AreaConfig, lastState *apiv1.State) error {
+
 	for {
-		now := time.Now().UTC().Round(time.Duration(entsoe.TimeSlotsInMinutes * time.Minute))
+		now := time.Now().UTC().Round(time.Duration(areaConfig.ResolutionMinutes) * time.Minute)
 
 		// if it's the first time begin a year ago, otherwise start at last stored value
-		var start time.Time
-		if lastMeasurement != nil {
-			start = lastMeasurement.MeasuredAtTime.Add(time.Duration(entsoe.TimeSlotsInMinutes) * time.Minute)
-		} else {
-			start = now.AddDate(-1, 0, 0)
+		start := now.AddDate(-1, 0, 0)
+		if lastState == nil && lastState.LastRetrievedGenerationTime != nil {
+			if lastRetrievedGenerationTime, ok := lastState.LastRetrievedGenerationTime[areaConfig.Area]; ok {
+				start = lastRetrievedGenerationTime.Add(time.Duration(areaConfig.ResolutionMinutes) * time.Minute)
+			}
 		}
-		end := start.Add(time.Duration(4*24*entsoe.TimeSlotsInMinutes) * time.Minute)
+		end := start.Add(time.Duration(4*24*areaConfig.ResolutionMinutes) * time.Minute)
 		if end.After(now) {
 			end = now
 		}
@@ -63,7 +85,7 @@ func (s *service) Run(ctx context.Context, gracefulShutdown chan os.Signal, wait
 		}
 
 		// retrieve actual measurements
-		response, err := s.entsoeClient.GetAggregatedGenerationPerType(area, entsoe.TimeInterval{
+		response, err := s.entsoeClient.GetAggregatedGenerationPerType(areaConfig.Area, apiv1.TimeInterval{
 			Start: start,
 			End:   end,
 		})
@@ -80,23 +102,18 @@ func (s *service) Run(ctx context.Context, gracefulShutdown chan os.Signal, wait
 			return nil
 		}
 
-		nrOfSlots := int(response.TimePeriod.End.Sub(response.TimePeriod.Start).Minutes() / entsoe.TimeSlotsInMinutes)
+		nrOfSlots := int(response.TimePeriod.End.Sub(response.TimePeriod.Start).Minutes() / float64(areaConfig.ResolutionMinutes))
 
-		var lastStoredMeasurement *contractsv1.Measurement
+		if nrOfSlots == 0 {
+			log.Info().Msg("No new measurements were inserted, exiting")
+			return nil
+		}
+
 		for i := 0; i < nrOfSlots; i++ {
-			measurement, err := s.handleTimeSlot(ctx, response, i, area, waitGroup)
+			err := s.handleTimeSlot(ctx, response, i, areaConfig, waitGroup, lastState)
 			if err != nil {
 				return err
 			}
-
-			lastStoredMeasurement = &measurement
-		}
-
-		if lastStoredMeasurement != nil {
-			lastMeasurement = lastStoredMeasurement
-		} else {
-			log.Info().Msg("No new measurements were inserted, exiting")
-			return nil
 		}
 
 		log.Info().Msg("Sleeping for 15 seconds before retrieving more data, to avoid rate limiting")
@@ -109,80 +126,79 @@ func (s *service) Run(ctx context.Context, gracefulShutdown chan os.Signal, wait
 	}
 }
 
-func (s *service) mapToEnergyType(psrType entsoe.PsrType) contractsv1.EnergyType {
+func (s *service) mapToEnergyType(psrType apiv1.PsrType) apiv1.EnergyType {
 
 	switch psrType {
-	case entsoe.PsrTypeBiomass:
-		return contractsv1.EnergyTypeBiomass
+	case apiv1.PsrTypeBiomass:
+		return apiv1.EnergyTypeBiomass
 
-	case entsoe.PsrTypeFossilHardCoal,
-		entsoe.PsrTypeFossilBrownCoal:
-		return contractsv1.EnergyTypeCoal
+	case apiv1.PsrTypeFossilHardCoal,
+		apiv1.PsrTypeFossilBrownCoal:
+		return apiv1.EnergyTypeCoal
 
-	case entsoe.PsrTypeFossilCoalDerivedGas,
-		entsoe.PsrTypeFossilGas:
-		return contractsv1.EnergyTypeGas
+	case apiv1.PsrTypeFossilCoalDerivedGas,
+		apiv1.PsrTypeFossilGas:
+		return apiv1.EnergyTypeGas
 
-	case entsoe.PsrTypeFossilOil,
-		entsoe.PsrTypeFossilOilShale,
-		entsoe.PsrTypeFossilOilPeat:
-		return contractsv1.EnergyTypeOil
+	case apiv1.PsrTypeFossilOil,
+		apiv1.PsrTypeFossilOilShale,
+		apiv1.PsrTypeFossilOilPeat:
+		return apiv1.EnergyTypeOil
 
-	case entsoe.PsrTypeGeothermal:
-		return contractsv1.EnergyTypeGeothermal
+	case apiv1.PsrTypeGeothermal:
+		return apiv1.EnergyTypeGeothermal
 
-	case entsoe.PsrTypeHydroPumpedStorage,
-		entsoe.PsrTypeHydroRunOfRiver,
-		entsoe.PsrTypeHydroWaterReservoir,
-		entsoe.PsrTypeMarin:
-		return contractsv1.EnergyTypeHydro
+	case apiv1.PsrTypeHydroPumpedStorage,
+		apiv1.PsrTypeHydroRunOfRiver,
+		apiv1.PsrTypeHydroWaterReservoir,
+		apiv1.PsrTypeMarin:
+		return apiv1.EnergyTypeHydro
 
-	case entsoe.PsrTypeNuclear:
-		return contractsv1.EnergyTypeNuclear
+	case apiv1.PsrTypeNuclear:
+		return apiv1.EnergyTypeNuclear
 
-	case entsoe.PsrTypeOtherRenewable:
-		return contractsv1.EnergyTypeOtherRenewable
+	case apiv1.PsrTypeOtherRenewable:
+		return apiv1.EnergyTypeOtherRenewable
 
-	case entsoe.PsrTypeSolar:
-		return contractsv1.EnergyTypeSolar
-	case entsoe.PsrTypeWaste:
-		return contractsv1.EnergyTypeWaste
+	case apiv1.PsrTypeSolar:
+		return apiv1.EnergyTypeSolar
+	case apiv1.PsrTypeWaste:
+		return apiv1.EnergyTypeWaste
 
-	case entsoe.PsrTypeWindOffshore:
-		return contractsv1.EnergyTypeWindOffshore
+	case apiv1.PsrTypeWindOffshore:
+		return apiv1.EnergyTypeWindOffshore
 
-	case entsoe.PsrTypeWindOnshore:
-		return contractsv1.EnergyTypeWindOnshore
+	case apiv1.PsrTypeWindOnshore:
+		return apiv1.EnergyTypeWindOnshore
 	}
 
-	return contractsv1.EnergyTypeUnknown
+	return apiv1.EnergyTypeUnknown
 }
 
-func (s *service) mapToSampleDirection(timeSerie entsoe.AggregatedGenerationTimeSerie) contractsv1.SampleDirection {
-	if timeSerie.InBiddingZone != entsoe.AreaUnknown {
-		return contractsv1.SampleDirectionIn
+func (s *service) mapToSampleDirection(timeSerie apiv1.AggregatedGenerationTimeSerie) apiv1.SampleDirection {
+	if timeSerie.InBiddingZone != apiv1.AreaUnknown {
+		return apiv1.SampleDirectionIn
 	}
-	if timeSerie.OutBiddingZone != entsoe.AreaUnknown {
-		return contractsv1.SampleDirectionOut
+	if timeSerie.OutBiddingZone != apiv1.AreaUnknown {
+		return apiv1.SampleDirectionOut
 	}
 
-	return contractsv1.SampleDirectionUnknown
+	return apiv1.SampleDirectionUnknown
 }
 
-func (s *service) mapToSampleUnit(measurementUnit entsoe.MeasurementUnit) contractsv1.SampleUnit {
-	if measurementUnit == entsoe.MeasurementUnitMegaWatt {
-		return contractsv1.SampleUnitMegaWatt
+func (s *service) mapToSampleUnit(measurementUnit apiv1.MeasurementUnit) apiv1.SampleUnit {
+	if measurementUnit == apiv1.MeasurementUnitMegaWatt {
+		return apiv1.SampleUnitMegaWatt
 	}
 
-	return contractsv1.SampleUnitUnknown
+	return apiv1.SampleUnitUnknown
 }
 
-func (s *service) createMeasurementForTimeSlot(response entsoe.GetAggregatedGenerationPerTypeResponse, timeSlotStartTime time.Time, area entsoe.Area) contractsv1.Measurement {
-
-	measurement := contractsv1.Measurement{
+func (s *service) createGenerationMeasurementForTimeSlot(response apiv1.GetAggregatedGenerationPerTypeResponse, timeSlotStartTime time.Time, areaConfig apiv1.AreaConfig) apiv1.GenerationMeasurement {
+	measurement := apiv1.GenerationMeasurement{
 		ID:             uuid.New().String(),
 		Source:         "ENTSOE",
-		Area:           area.GetCountryCode(),
+		Area:           areaConfig.Area.GetCountryCode(),
 		MeasuredAtTime: timeSlotStartTime,
 	}
 
@@ -201,15 +217,15 @@ func (s *service) createMeasurementForTimeSlot(response entsoe.GetAggregatedGene
 			continue
 		}
 
-		pointIndexForSlot := int(timeSlotStartTime.Sub(ts.Period.TimeInterval.Start).Minutes() / entsoe.TimeSlotsInMinutes)
+		pointIndexForSlot := int(timeSlotStartTime.Sub(ts.Period.TimeInterval.Start).Minutes() / float64(areaConfig.ResolutionMinutes))
 
 		energyType := s.mapToEnergyType(ts.MktPsrType.PsrType)
 		if pointIndexForSlot < len(ts.Period.Points) {
-			measurement.Samples = append(measurement.Samples, &contractsv1.Sample{
+			measurement.Samples = append(measurement.Samples, &apiv1.Sample{
 				EnergyType:         energyType,
 				OriginalEnergyType: string(ts.MktPsrType.PsrType),
 				IsRenewable:        energyType.IsRenewable(),
-				MetricType:         contractsv1.MetricTypeGauge,
+				MetricType:         apiv1.MetricTypeGauge,
 				SampleDirection:    s.mapToSampleDirection(ts),
 				SampleUnit:         s.mapToSampleUnit(ts.QuanityMeasurementUnit),
 				Value:              ts.Period.Points[pointIndexForSlot].Quantity,
@@ -223,25 +239,30 @@ func (s *service) createMeasurementForTimeSlot(response entsoe.GetAggregatedGene
 	return measurement
 }
 
-func (s *service) handleTimeSlot(ctx context.Context, response entsoe.GetAggregatedGenerationPerTypeResponse, timeSlotIndex int, area entsoe.Area, waitGroup *sync.WaitGroup) (measurement contractsv1.Measurement, err error) {
-	timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(timeSlotIndex*entsoe.TimeSlotsInMinutes) * time.Minute)
-	// if lastMeasurement != nil && timeSlotStartTime.Equal(lastMeasurement.MeasuredAtTime) {
-	// 	log.Info().Msgf("Timeslot start at %v has already been stored, continuing to next timeslot", timeSlotStartTime)
-	// 	continue
-	// }
+func (s *service) handleTimeSlot(ctx context.Context, response apiv1.GetAggregatedGenerationPerTypeResponse, timeSlotIndex int, areaConfig apiv1.AreaConfig, waitGroup *sync.WaitGroup, lastState *apiv1.State) (err error) {
+	timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(timeSlotIndex*areaConfig.ResolutionMinutes) * time.Minute)
 
-	measurement = s.createMeasurementForTimeSlot(response, timeSlotStartTime, area)
+	measurement := s.createGenerationMeasurementForTimeSlot(response, timeSlotStartTime, areaConfig)
 
 	// store measurement
 	waitGroup.Add(1)
 	defer waitGroup.Done()
-	err = s.bigqueryClient.InsertMeasurement(measurement)
+	err = s.generationBigqueryClient.InsertMeasurement(measurement)
 	if err != nil {
 		return
 	}
 
+	// update state
+	if lastState == nil {
+		lastState = &apiv1.State{}
+	}
+	if lastState.LastRetrievedGenerationTime == nil {
+		lastState.LastRetrievedGenerationTime = make(map[apiv1.Area]time.Time, 0)
+	}
+	lastState.LastRetrievedGenerationTime[areaConfig.Area] = measurement.MeasuredAtTime
+
 	// store state
-	err = s.stateClient.StoreState(ctx, measurement)
+	err = s.stateClient.StoreState(ctx, *lastState)
 	if err != nil {
 		return
 	}

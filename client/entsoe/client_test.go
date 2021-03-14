@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	apiv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/api/v1"
 	"github.com/alecthomas/assert"
 )
 
@@ -19,14 +20,14 @@ func TestGetAggregatedGenerationPerType(t *testing.T) {
 		client, err := NewClient(os.Getenv("ENTSOE_TOKEN"))
 		assert.Nil(t, err)
 
-		area := AreaNetherlands
+		area := apiv1.AreaNetherlands
 
 		now := time.Now().UTC()
-		nowRoundedToTimeSlotSize := now.Round(time.Duration(TimeSlotsInMinutes * time.Minute))
+		nowRoundedToTimeSlotSize := now.Round(time.Duration(15 * time.Minute))
 		startTime := nowRoundedToTimeSlotSize.Add(time.Duration(-3 * time.Hour))
 		endTime := nowRoundedToTimeSlotSize
 
-		timeInterval := TimeInterval{
+		timeInterval := apiv1.TimeInterval{
 			Start: startTime,
 			End:   endTime,
 		}

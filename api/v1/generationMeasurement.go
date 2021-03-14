@@ -1,10 +1,10 @@
-package contracts
+package api
 
 import (
 	"time"
 )
 
-type Measurement struct {
+type GenerationMeasurement struct {
 	ID             string
 	Source         string
 	Area           string

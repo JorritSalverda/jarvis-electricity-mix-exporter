@@ -2,12 +2,17 @@ package bigquery
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	googlebigquery "cloud.google.com/go/bigquery"
-	contractsv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/contracts/v1"
 	"github.com/rs/zerolog/log"
+)
+
+var (
+	ErrIncorrectTypeMeasurement = errors.New("Type of measurement is incorrect")
 )
 
 // Client is the interface for connecting to bigquery
@@ -17,12 +22,12 @@ type Client interface {
 	CreateTable(typeForSchema interface{}, partitionField string, waitReady bool) (err error)
 	UpdateTableSchema(typeForSchema interface{}) (err error)
 	DeleteTable() (err error)
-	InsertMeasurement(measurement contractsv1.Measurement) (err error)
+	InsertMeasurement(measurement interface{}) (err error)
 	InitBigqueryTable() (err error)
 }
 
 // NewClient returns new bigquery.Client
-func NewClient(projectID string, enable bool, dataset, table string) (Client, error) {
+func NewClient(projectID string, enable bool, dataset, table string, typeForSchema interface{}, partitionField string) (Client, error) {
 
 	ctx := context.Background()
 
@@ -32,20 +37,24 @@ func NewClient(projectID string, enable bool, dataset, table string) (Client, er
 	}
 
 	return &client{
-		projectID: projectID,
-		client:    bigqueryClient,
-		enable:    enable,
-		dataset:   dataset,
-		table:     table,
+		projectID:      projectID,
+		client:         bigqueryClient,
+		enable:         enable,
+		dataset:        dataset,
+		table:          table,
+		typeForSchema:  typeForSchema,
+		partitionField: partitionField,
 	}, nil
 }
 
 type client struct {
-	projectID string
-	client    *googlebigquery.Client
-	enable    bool
-	dataset   string
-	table     string
+	projectID      string
+	client         *googlebigquery.Client
+	enable         bool
+	dataset        string
+	table          string
+	typeForSchema  interface{}
+	partitionField string
 }
 
 func (c *client) CheckIfDatasetExists() (exists bool) {
@@ -167,10 +176,15 @@ func (c *client) DeleteTable() (err error) {
 	return nil
 }
 
-func (c *client) InsertMeasurement(measurement contractsv1.Measurement) (err error) {
+func (c *client) InsertMeasurement(measurement interface{}) (err error) {
 
 	if !c.enable {
 		return nil
+	}
+
+	// check if measurement is of correct type
+	if reflect.TypeOf(measurement) != c.typeForSchema {
+		return ErrIncorrectTypeMeasurement
 	}
 
 	tbl := c.client.Dataset(c.dataset).Table(c.table)
@@ -191,13 +205,13 @@ func (c *client) InitBigqueryTable() (err error) {
 
 	if !tableExist {
 		log.Debug().Msgf("Creating table %v.%v.%v...", c.projectID, c.dataset, c.table)
-		err := c.CreateTable(contractsv1.Measurement{}, "MeasuredAtTime", true)
+		err := c.CreateTable(c.typeForSchema, c.partitionField, true)
 		if err != nil {
 			return fmt.Errorf("Failed creating bigquery table: %w", err)
 		}
 	} else {
 		log.Debug().Msgf("Trying to update table %v.%v.%v schema...", c.projectID, c.dataset, c.table)
-		err := c.UpdateTableSchema(contractsv1.Measurement{})
+		err := c.UpdateTableSchema(c.typeForSchema)
 		if err != nil {
 			return fmt.Errorf("Failed updating bigquery table schema: %w", err)
 		}

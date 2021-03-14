@@ -6,21 +6,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/JorritSalverda/jarvis-electricity-mix-exporter/client/entsoe"
+	apiv1 "github.com/JorritSalverda/jarvis-electricity-mix-exporter/api/v1"
 	"github.com/alecthomas/assert"
 )
 
-func TestCreateMeasurementForTimeSlot(t *testing.T) {
+func TestcreateGenerationMeasurementForTimeSlot(t *testing.T) {
 	t.Run("CreatesSamplesForEachTimeSeriesThatHasAPointForFirstTimeSlot", func(t *testing.T) {
 
 		service := service{}
 		testResponse, _ := ioutil.ReadFile("../../client/entsoe/A75-response.xml")
-		var response entsoe.GetAggregatedGenerationPerTypeResponse
+		var response apiv1.GetAggregatedGenerationPerTypeResponse
 		err := xml.Unmarshal([]byte(testResponse), &response)
 		assert.Nil(t, err)
 
 		// act
-		measurement := service.createMeasurementForTimeSlot(response, response.TimePeriod.Start, entsoe.AreaNetherlands)
+		measurement := service.createGenerationMeasurementForTimeSlot(response, response.TimePeriod.Start, apiv1.AreaConfig{Area: apiv1.AreaNetherlands})
 
 		assert.Equal(t, 19, len(measurement.Samples))
 	})
@@ -29,12 +29,12 @@ func TestCreateMeasurementForTimeSlot(t *testing.T) {
 
 		service := service{}
 		testResponse, _ := ioutil.ReadFile("../../client/entsoe/A75-response.xml")
-		var response entsoe.GetAggregatedGenerationPerTypeResponse
+		var response apiv1.GetAggregatedGenerationPerTypeResponse
 		err := xml.Unmarshal([]byte(testResponse), &response)
 		assert.Nil(t, err)
 
 		// act
-		measurement := service.createMeasurementForTimeSlot(response, response.TimePeriod.End.Add(time.Duration(-1*entsoe.TimeSlotsInMinutes)*time.Minute), entsoe.AreaNetherlands)
+		measurement := service.createGenerationMeasurementForTimeSlot(response, response.TimePeriod.End.Add(time.Duration(-1*15)*time.Minute), apiv1.AreaConfig{Area: apiv1.AreaNetherlands})
 
 		assert.Equal(t, 19, len(measurement.Samples))
 	})
@@ -47,16 +47,16 @@ func TestCreateMeasurementForTimeSlot(t *testing.T) {
 
 		service := service{}
 		testResponse, _ := ioutil.ReadFile("../../client/entsoe/A75-response.xml")
-		var response entsoe.GetAggregatedGenerationPerTypeResponse
+		var response apiv1.GetAggregatedGenerationPerTypeResponse
 		err := xml.Unmarshal([]byte(testResponse), &response)
 		assert.Nil(t, err)
 
 		// act
-		nrOfSlots := int(response.TimePeriod.End.Sub(response.TimePeriod.Start).Minutes() / entsoe.TimeSlotsInMinutes)
+		nrOfSlots := int(response.TimePeriod.End.Sub(response.TimePeriod.Start).Minutes() / 15)
 		assert.Equal(t, 96, nrOfSlots)
 		for i := 0; i < nrOfSlots; i++ {
-			timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(i*entsoe.TimeSlotsInMinutes) * time.Minute)
-			measurement := service.createMeasurementForTimeSlot(response, timeSlotStartTime, entsoe.AreaNetherlands)
+			timeSlotStartTime := response.TimePeriod.Start.Add(time.Duration(i*15) * time.Minute)
+			measurement := service.createGenerationMeasurementForTimeSlot(response, timeSlotStartTime, apiv1.AreaConfig{Area: apiv1.AreaNetherlands})
 
 			assert.Equal(t, 19, len(measurement.Samples), "Number of samples for time slot %v does not match expectation", timeSlotStartTime)
 			assert.Equal(t, timeSlotStartTime, measurement.MeasuredAtTime)
@@ -67,12 +67,12 @@ func TestCreateMeasurementForTimeSlot(t *testing.T) {
 
 		service := service{}
 		testResponse, _ := ioutil.ReadFile("../../client/entsoe/A75-response.xml")
-		var response entsoe.GetAggregatedGenerationPerTypeResponse
+		var response apiv1.GetAggregatedGenerationPerTypeResponse
 		err := xml.Unmarshal([]byte(testResponse), &response)
 		assert.Nil(t, err)
 
 		// act
-		measurement := service.createMeasurementForTimeSlot(response, response.TimePeriod.End.Add(time.Duration(-1*entsoe.TimeSlotsInMinutes)*time.Minute), entsoe.AreaNetherlands)
+		measurement := service.createGenerationMeasurementForTimeSlot(response, response.TimePeriod.End.Add(time.Duration(-1*15)*time.Minute), apiv1.AreaConfig{Area: apiv1.AreaNetherlands})
 
 		assert.Equal(t, 19, len(measurement.Samples))
 	})

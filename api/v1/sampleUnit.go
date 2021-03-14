@@ -1,4 +1,4 @@
-package contracts
+package api
 
 type SampleUnit string
 
