@@ -58,7 +58,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed creating bigquery.Client for GenerationMeasurement")
 	}
-	exchangeBigqueryClient, err := bigquery.NewClient(*bigqueryProjectID, *bigqueryEnable, *bigqueryDataset, *bigqueryGenerationTable, apiv1.ExchangeMeasurement{}, "MeasuredAtTime")
+	exchangeBigqueryClient, err := bigquery.NewClient(*bigqueryProjectID, *bigqueryEnable, *bigqueryDataset, *bigqueryExchangeTable, apiv1.ExchangeMeasurement{}, "MeasuredAtTime")
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed creating bigquery.Client for ExchangeMeasurement")
 	}
