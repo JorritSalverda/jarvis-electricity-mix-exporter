@@ -63,12 +63,14 @@ func (s *service) Run(ctx context.Context, gracefulShutdown chan os.Signal, wait
 
 func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signal, waitGroup *sync.WaitGroup, areaConfig apiv1.AreaConfig, lastState *apiv1.State) error {
 
+	log.Info().Interface("areaConfig", areaConfig).Msgf("Retrieving measurements for area %v / country %v", areaConfig.Area, areaConfig.Country)
+
 	for {
 		now := time.Now().UTC().Round(time.Duration(areaConfig.ResolutionMinutes) * time.Minute)
 
 		// if it's the first time begin a year ago, otherwise start at last stored value
 		start := now.AddDate(areaConfig.StartYearsAgo, areaConfig.StartMonthsAgo, areaConfig.StartDaysAgo)
-		if lastState == nil && lastState.LastRetrievedGenerationTime != nil {
+		if lastState != nil && lastState.LastRetrievedGenerationTime != nil {
 			if lastRetrievedGenerationTime, ok := lastState.LastRetrievedGenerationTime[areaConfig.Area]; ok {
 				start = lastRetrievedGenerationTime.Add(time.Duration(areaConfig.ResolutionMinutes) * time.Minute)
 			}
