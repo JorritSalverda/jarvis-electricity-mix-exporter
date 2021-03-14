@@ -17,11 +17,15 @@ areas:
     country: 'NO'
 - area: '10YBE----------2'
   country: 'BE'
+  resolutionMinutes: 60
 - area: '10Y1001A1001A83F'
   country: 'DE'
 - area: '10YDK-1--------W'
   country: 'DK'
+  resolutionMinutes: 60
 - area: '10YGB----------A'
   country: 'GB'
+  resolutionMinutes: 30
 - area: '10YNO-2--------T'
   country: 'NO'
+  resolutionMinutes: 60
