@@ -94,15 +94,6 @@ const (
 	AreaNorway       Area = "10YNO-0--------C"
 )
 
-func (a Area) GetCountryCode() string {
-	switch a {
-	case AreaNetherlands:
-		return "NL"
-	}
-
-	return "UNKNOWN"
-}
-
 type ProcessType string
 
 const (

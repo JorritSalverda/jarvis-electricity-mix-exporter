@@ -76,7 +76,7 @@ spec:
                 configMapKeyRef:
                   name: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
                   key: bq-exchange-table
-            - name: MEASUREMENT_FILE_CONFIG_MAP_NAME
+            - name: STATE_FILE_CONFIG_MAP_NAME
               value: {{ include "jarvis-electricity-mix-exporter.fullname" . }}
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /secrets/keyfile.json
