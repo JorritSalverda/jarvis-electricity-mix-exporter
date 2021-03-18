@@ -112,9 +112,7 @@ func (s *service) runForArea(ctx context.Context, gracefulShutdown chan os.Signa
 		}
 
 		for i := 0; i < nrOfSlots; i++ {
-			log.Debug().Interface("lastState", lastState).Msg("Before handleTimeSlot")
 			err := s.handleTimeSlot(ctx, response, i, areaConfig, waitGroup, lastState)
-			log.Debug().Interface("lastState", lastState).Msg("After handleTimeSlot")
 			if err != nil {
 				return err
 			}
